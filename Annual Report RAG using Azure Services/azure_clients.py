@@ -62,19 +62,6 @@ def search_client():
     )
 
 
-@lru_cache(maxsize=None)                    # one Document Intelligence client for the whole run
-def docintel_client():
-    """Azure AI Document Intelligence: PDF in, markdown out."""
-    from azure.ai.documentintelligence import DocumentIntelligenceClient  # the analysis client
-    from azure.core.credentials import AzureKeyCredential                 # wraps a plain key
-
-    config.require("AZURE_DOCINTEL_ENDPOINT", "AZURE_DOCINTEL_API_KEY")   # stop early if the settings are empty
-    return DocumentIntelligenceClient(                                    # connect to the resource
-        endpoint=config.AZURE_DOCINTEL_ENDPOINT,                          # the resource URL
-        credential=AzureKeyCredential(config.AZURE_DOCINTEL_API_KEY),     # the key
-    )
-
-
 @lru_cache(maxsize=None)                    # one Blob container client for the whole run
 def blob_container():
     """Azure Blob Storage: the container that holds the annual report PDFs."""

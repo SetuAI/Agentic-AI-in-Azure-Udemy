@@ -10,10 +10,13 @@ OpenAI/Chroma version: nothing is shared, and nothing here changes it.
 | Job                        | Azure service                    |
 | -------------------------- | -------------------------------- |
 | Store the PDFs             | Azure Blob Storage               |
-| Read the PDFs (incl. scans, tables) | Azure AI Document Intelligence |
+| Read the PDFs (text, tables)  | PyMuPDF4LLM (free, runs locally) |
 | Store and search the chunks | Azure AI Search (hybrid search) |
 | Pick the best 5 chunks     | Azure AI Search semantic ranker  |
 | Embeddings, answers, checks | Azure OpenAI                    |
+
+PDFs are converted with **PyMuPDF4LLM** rather than Azure AI Document
+Intelligence, which bills per page and would be costly for reports this long.
 
 ---
 
@@ -75,7 +78,7 @@ Or set `LOCAL_PDF_DIR` in `.env` to the folder where they already are.
 
 ```bash
 python ingestion/upload_pdfs.py    # PDFs -> Blob Storage (once)
-python run_ingestion.py            # Blob -> Document Intelligence -> chunks -> AI Search
+python run_ingestion.py            # Blob -> PyMuPDF4LLM -> chunks -> AI Search
 ```
 
 ---
@@ -110,7 +113,7 @@ python -m pytest tests
 
 24 tests, all offline: no Azure account, no keys, no cost. They cover the search
 filter, the index definition, the search call, the semantic rerank, the
-Document Intelligence cache, the content-filter handling, the guardrails, and
+PDF-to-markdown cache, the content-filter handling, the guardrails, and
 the review pause.
 
 ---
@@ -118,9 +121,8 @@ the review pause.
 ## Cost: read before running
 
 - **AI Search Basic** is billed **per hour** while it exists, even when idle.
-- **Document Intelligence** is billed **per page**, and these reports run to hundreds
-  of pages each. Results are cached in `data/processed/`, so each report is only
-  analysed once. Delete a `.md` file there only if you want to pay to analyse it again.
+- **PDF conversion is free.** PyMuPDF4LLM runs on your machine. Results are cached in
+  `data/processed/`, so each report is converted only once.
 - **Azure OpenAI** is billed per token. Building the index embeds every chunk once,
   and each question costs a few calls.
 
@@ -142,7 +144,7 @@ run_query.py              ask a question, review if needed
 
 ingestion/
   upload_pdfs.py          PDFs -> Blob Storage
-  load_pdfs.py            Blob -> Document Intelligence -> markdown (cached)
+  load_pdfs.py            Blob -> PyMuPDF4LLM -> markdown (cached)
   chunk.py                markdown -> labelled chunks
   build_index.py          chunks -> embeddings -> Azure AI Search index
 
@@ -173,7 +175,7 @@ tests/                    offline tests
 ## Suggested course order
 
 1. **Azure OpenAI.** Deployments vs model names; the `AzureOpenAI` client.
-2. **Blob Storage + Document Intelligence.** Why OCR and layout matter for scanned pages and tables, and why to cache.
+2. **Blob Storage + PyMuPDF4LLM.** Storing files in Blob; turning PDFs into markdown for free (and why Document Intelligence was skipped: per-page cost).
 3. **Azure AI Search.** Index fields, filters, hybrid search, and why the year filter is still essential.
 4. **Semantic ranker.** What it changes (`retrieval/rerank.py` shows each chunk's move).
 5. **Guardrails and human review.** Content filter errors, grounding, and the LangGraph pause.

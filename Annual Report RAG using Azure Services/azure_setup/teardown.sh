@@ -5,7 +5,7 @@
 #     bash azure_setup/teardown.sh
 #
 # Deletes the whole resource group, and with it every resource inside: Azure
-# OpenAI, AI Search (and the index), Document Intelligence, and the storage
+# OpenAI, AI Search (and the index), and the storage
 # account (and the uploaded PDFs). This cannot be undone.
 # ==============================================================================
 
@@ -22,7 +22,7 @@ fi
 az group delete --name "$RG" --yes --no-wait    # start the deletion; --no-wait returns straight away
 echo "Deletion started. It finishes in a few minutes -- check the Azure portal."
 
-# Azure OpenAI and Document Intelligence are "soft-deleted" for 48 hours, which
+# Azure OpenAI is "soft-deleted" for 48 hours, which
 # blocks re-using the same names. To free the names immediately, purge them:
 #   az cognitiveservices account list-deleted
 #   az cognitiveservices account purge --name <name> --resource-group rg-annual-report-rag --location <region>

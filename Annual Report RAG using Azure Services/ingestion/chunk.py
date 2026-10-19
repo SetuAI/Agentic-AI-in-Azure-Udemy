@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))  # make azure_based/ impor
 
 import config                                   # chunk size, overlap, minimum length
 
-# Where the splitter prefers to cut, best first. Document Intelligence writes
+# Where the splitter prefers to cut, best first. PyMuPDF4LLM writes
 # markdown headings, so cutting at a heading keeps each section together.
 MARKDOWN_SEPARATORS = [
     "\n# ",                                     # top-level heading  ("# Risk Factors")

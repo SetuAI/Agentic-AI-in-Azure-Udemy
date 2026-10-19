@@ -1,6 +1,6 @@
 """
 Offline tests for the Azure-specific code: the OData filter, the index
-definition, the search call, the semantic rerank, the Document Intelligence
+definition, the search call, the semantic rerank, the PDF-to-markdown
 cache, the content-filter handling, and the settings check.
 """
 
@@ -99,7 +99,7 @@ def test_document_ids_use_only_allowed_characters():
 
 
 # ------------------------------------------------------------------------------
-# Document Intelligence: the cache stops us paying twice
+# PyMuPDF4LLM: the cache stops us converting twice
 # ------------------------------------------------------------------------------
 
 DOC = {"filename": "infosys_fy2025.pdf", "company": "Infosys", "fiscal_year": "FY2025", "year_label": "FY 2024-25"}
@@ -108,7 +108,7 @@ DOC = {"filename": "infosys_fy2025.pdf", "company": "Infosys", "fiscal_year": "F
 def test_cached_markdown_is_used_without_calling_azure(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "PROCESSED_DIR", tmp_path)
     (tmp_path / "Infosys_FY2025.md").write_text("# cached")
-    monkeypatch.setattr(load_pdfs, "analyse_pdf", lambda p: pytest.fail("Document Intelligence was called"))
+    monkeypatch.setattr(load_pdfs, "analyse_pdf", lambda p: pytest.fail("PDF was converted again"))
     result = load_pdfs.load_single_pdf(DOC)
     assert result["text"] == "# cached" and result["loaded_from"] == "cache"
 

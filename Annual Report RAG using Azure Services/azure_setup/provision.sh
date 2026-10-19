@@ -20,7 +20,6 @@ LOCATION="${LOCATION:-eastus2}"                 # a region that offers all four 
 RG="rg-annual-report-rag"                       # the resource group: one folder holding everything
 OPENAI="aoai-annualreport-$SUFFIX"              # Azure OpenAI resource name
 SEARCH="srch-annualreport-$SUFFIX"              # Azure AI Search service name
-DOCINTEL="di-annualreport-$SUFFIX"              # Document Intelligence resource name
 STORAGE="stannualreport$SUFFIX"                 # storage account: lowercase letters and digits only
 CONTAINER="annual-reports"                      # the Blob container for the PDFs
 
@@ -48,12 +47,6 @@ echo "Creating Azure AI Search service $SEARCH (Basic tier)"
 az search service create --name "$SEARCH" --resource-group "$RG" --location "$LOCATION" \
   --sku basic --semantic-search free --output none  # 'free' plan: 1,000 semantic queries a month at no extra cost
 
-# --- Document Intelligence -----------------------------------------------------
-echo "Creating Document Intelligence resource $DOCINTEL (S0 -- F0 only reads the first 2 pages)"
-az cognitiveservices account create --name "$DOCINTEL" --resource-group "$RG" \
-  --location "$LOCATION" --kind FormRecognizer --sku S0 \
-  --custom-domain "$DOCINTEL" --output none     # FormRecognizer is Document Intelligence's old name, still used here
-
 # --- Blob Storage ---------------------------------------------------------------
 echo "Creating storage account $STORAGE and container $CONTAINER"
 az storage account create --name "$STORAGE" --resource-group "$RG" --location "$LOCATION" \
@@ -66,8 +59,6 @@ az storage container create --name "$CONTAINER" --connection-string "$CONN" --ou
 OPENAI_ENDPOINT=$(az cognitiveservices account show --name "$OPENAI" --resource-group "$RG" --query properties.endpoint -o tsv)
 OPENAI_KEY=$(az cognitiveservices account keys list --name "$OPENAI" --resource-group "$RG" --query key1 -o tsv)
 SEARCH_KEY=$(az search admin-key show --service-name "$SEARCH" --resource-group "$RG" --query primaryKey -o tsv)
-DI_ENDPOINT=$(az cognitiveservices account show --name "$DOCINTEL" --resource-group "$RG" --query properties.endpoint -o tsv)
-DI_KEY=$(az cognitiveservices account keys list --name "$DOCINTEL" --resource-group "$RG" --query key1 -o tsv)
 
 cat <<EOF
 
@@ -83,8 +74,6 @@ AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small
 AZURE_SEARCH_ENDPOINT=https://$SEARCH.search.windows.net
 AZURE_SEARCH_API_KEY=$SEARCH_KEY
 AZURE_SEARCH_INDEX=annual-reports
-AZURE_DOCINTEL_ENDPOINT=$DI_ENDPOINT
-AZURE_DOCINTEL_API_KEY=$DI_KEY
 AZURE_STORAGE_CONNECTION_STRING=$CONN
 AZURE_STORAGE_CONTAINER=$CONTAINER
 LOCAL_PDF_DIR=./pdfs

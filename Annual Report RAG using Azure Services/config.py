@@ -11,8 +11,10 @@ Every Azure service the pipeline talks to is configured here:
 
     Azure OpenAI                     writes answers, embeds text, runs checks
     Azure AI Search                  stores the chunks, searches, reranks
-    Azure AI Document Intelligence   turns PDFs into markdown
     Azure Blob Storage               holds the PDFs in the cloud
+
+PDFs are turned into markdown locally with PyMuPDF4LLM (free), not with
+Azure Document Intelligence (billed per page -- too costly for these reports).
 
 Secrets (keys, endpoints) are NOT written here. They are read from a .env file
 in this folder. Copy .env.example to .env and fill it in -- or run
@@ -36,7 +38,7 @@ load_dotenv(PROJECT_ROOT / ".env", override=True)       # read azure_based/.env;
 
 DATA_DIR = PROJECT_ROOT / "data"                        # everything this pipeline writes lives under here
 RAW_PDF_DIR = DATA_DIR / "raw"                          # PDFs downloaded from Blob Storage land here
-PROCESSED_DIR = DATA_DIR / "processed"                  # markdown from Document Intelligence is cached here
+PROCESSED_DIR = DATA_DIR / "processed"                  # markdown from PyMuPDF4LLM is cached here
 
 # Where upload_pdfs.py finds the PDFs to send to Blob Storage. Put the four
 # reports in azure_based/pdfs/, or point LOCAL_PDF_DIR in .env at another folder.
@@ -110,12 +112,8 @@ RERANK_TOP_K = 5                                # chunks kept per year after the
 
 
 # ==============================================================================
-# SECTION 5 - DOCUMENT INTELLIGENCE AND BLOB STORAGE
+# SECTION 5 - BLOB STORAGE
 # ==============================================================================
-
-AZURE_DOCINTEL_ENDPOINT = os.getenv("AZURE_DOCINTEL_ENDPOINT")   # e.g. https://my-docintel.cognitiveservices.azure.com/
-AZURE_DOCINTEL_API_KEY = os.getenv("AZURE_DOCINTEL_API_KEY")     # key from the Document Intelligence resource
-DOCINTEL_MODEL = "prebuilt-layout"              # Azure's general-purpose model: text, headings, tables, reading order
 
 AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")    # one string: account name + key
 AZURE_STORAGE_CONTAINER = os.getenv("AZURE_STORAGE_CONTAINER", "annual-reports")  # container (folder) holding the PDFs

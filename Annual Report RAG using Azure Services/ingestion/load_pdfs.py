@@ -1,6 +1,6 @@
 """
 ================================================================================
-INGESTION STEP 1 - PDF (FROM BLOB STORAGE) TO MARKDOWN (VIA DOCUMENT INTELLIGENCE)
+INGESTION STEP 1 - PDF (FROM BLOB STORAGE) TO MARKDOWN (VIA PYMUPDF4LLM)
 ================================================================================
 
 WHAT THIS FILE DOES
@@ -8,27 +8,26 @@ WHAT THIS FILE DOES
 For each annual report:
 
     1. download it from Blob Storage          (skipped if already downloaded)
-    2. send it to Document Intelligence       (skipped if the markdown is cached)
+    2. convert it with PyMuPDF4LLM            (skipped if the markdown is cached)
     3. get back MARKDOWN -- headings, paragraphs and tables, in reading order
     4. save that markdown to data/processed/  (this is the cache)
 
-WHY DOCUMENT INTELLIGENCE
+WHY PYMUPDF4LLM (AND NOT AZURE DOCUMENT INTELLIGENCE)
+-----------------------------------------------------
+Azure AI Document Intelligence bills PER PAGE, and these reports run to hundreds
+of pages each -- too expensive for a course. PyMuPDF4LLM is a free, open-source
+library that runs on your own machine and writes LLM-friendly markdown,
+including tables.
+
+The trade-off: PyMuPDF4LLM reads the text layer inside the PDF. A page that is
+only a scanned image has no text layer, so it comes out (nearly) empty. The
+annual reports used here are digital PDFs, so this is fine.
+
+WHY THE CACHE STILL HELPS
 -------------------------
-A simple PDF reader only reads the text layer inside a PDF. If a page is a
-scanned image there IS no text layer, and that page comes out empty.
-
-Document Intelligence runs OCR (it reads the pixels) and a layout model (it
-understands columns, headings and tables). Scanned pages come back as text, and
-financial tables come back as markdown tables instead of jumbled numbers.
-
-WHY THE CACHE MATTERS -- READ THIS BEFORE RUNNING
--------------------------------------------------
-Document Intelligence bills PER PAGE, and these reports run to hundreds of pages
-each. Analysing them once is fine. Analysing them on every re-run would pay for
-the same work again and again.
-
-So the markdown is saved to data/processed/, and if that file exists the PDF is
-not sent again. To force a fresh analysis, delete the .md file.
+Converting a few hundred pages takes a minute or so per report. The markdown is
+saved to data/processed/, and if that file exists the PDF is not converted
+again. To force a fresh conversion, delete the .md file.
 
 HOW TO RUN
 ----------
@@ -42,8 +41,8 @@ from typing import Dict, List                   # type hints: what goes in and c
 
 sys.path.insert(0, str(Path(__file__).parent.parent))  # make azure_based/ importable
 
-import config                                   # settings: documents, folders, model name
-from azure_clients import blob_container, docintel_client  # the two Azure services this step uses
+import config                                   # settings: documents and folders
+from azure_clients import blob_container        # the one Azure service this step uses: Blob Storage
 
 
 def download_pdf(document: Dict) -> Path:
@@ -60,20 +59,13 @@ def download_pdf(document: Dict) -> Path:
 
 
 def analyse_pdf(pdf_path: Path) -> str:
-    """Send one PDF to Document Intelligence and return its content as markdown."""
-    from azure.ai.documentintelligence.models import DocumentContentFormat  # the "give me markdown" option
+    """Convert one PDF to markdown with PyMuPDF4LLM -- free, and it runs locally."""
+    import pymupdf4llm                          # imported here so the rest of the file loads without it
 
-    with open(pdf_path, "rb") as pdf_file:      # open the PDF as raw bytes
-        poller = docintel_client().begin_analyze_document(  # START the analysis -- it runs on Azure, not here
-            config.DOCINTEL_MODEL,              # "prebuilt-layout": text, headings, tables, reading order
-            body=pdf_file,                      # the PDF bytes to analyse
-            output_content_format=DocumentContentFormat.MARKDOWN,  # markdown instead of plain text
-        )
-
-    # A long report takes a minute or more. Azure works in the background and we
-    # get a "poller" back straight away. .result() waits until it has finished.
-    result = poller.result()                    # wait here until Azure is done
-    return result.content                       # the whole document as one markdown string
+    return pymupdf4llm.to_markdown(             # read every page and join them into one markdown string
+        str(pdf_path),                          # the PDF on disk (downloaded from Blob Storage)
+        show_progress=False,                    # keep the console quiet; we print our own summary
+    )
 
 
 def cache_path_for(document: Dict) -> Path:
@@ -90,10 +82,10 @@ def load_single_pdf(document: Dict) -> Dict:
         source = "cache"                        # note where it came from, for the printout
     else:                                       # first time for this report
         pdf_path = download_pdf(document)       # get the PDF from Blob Storage
-        markdown = analyse_pdf(pdf_path)        # send it to Document Intelligence (this costs money)
+        markdown = analyse_pdf(pdf_path)        # convert it locally with PyMuPDF4LLM (free)
         config.PROCESSED_DIR.mkdir(parents=True, exist_ok=True)  # create data/processed/ if needed
         cache_path.write_text(markdown, encoding="utf-8")        # save it so we never pay for it twice
-        source = "Document Intelligence"        # note where it came from
+        source = "PyMuPDF4LLM"                  # note where it came from
 
     return {                                    # the shape chunk.py expects
         "text": markdown,                       # the document's content
@@ -101,7 +93,7 @@ def load_single_pdf(document: Dict) -> Dict:
         "fiscal_year": document["fiscal_year"], # label carried onto every chunk -- the key search filter
         "year_label": document["year_label"],   # how the report writes its own year
         "source_file": document["filename"],    # which PDF it came from
-        "loaded_from": source,                  # "cache" or "Document Intelligence"
+        "loaded_from": source,                  # "cache" or "PyMuPDF4LLM"
     }
 
 
@@ -118,4 +110,4 @@ def load_all_pdfs(verbose: bool = True) -> List[Dict]:
 
 
 if __name__ == "__main__":                      # only when run directly
-    load_all_pdfs()                             # download, analyse or read from cache, and print a summary
+    load_all_pdfs()                             # download, convert or read from cache, and print a summary

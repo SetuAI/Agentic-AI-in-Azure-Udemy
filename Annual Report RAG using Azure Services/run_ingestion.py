@@ -3,7 +3,7 @@
 BUILD THE SEARCH INDEX - run once, after uploading the PDFs
 ================================================================================
 
-    Blob Storage --download--> Document Intelligence --markdown--> chunks
+    Blob Storage --download--> PyMuPDF4LLM --markdown--> chunks
                                                                       |
                      Azure AI Search  <--upload--  Azure OpenAI embeddings
 
@@ -24,14 +24,14 @@ sys.path.insert(0, str(Path(__file__).parent))  # make azure_based/ importable
 import config                                   # settings, for the printout
 from ingestion.build_index import build_index   # step 3: embed + upload to Azure AI Search
 from ingestion.chunk import chunk_all_documents # step 2: markdown -> chunks
-from ingestion.load_pdfs import load_all_pdfs   # step 1: Blob -> Document Intelligence -> markdown
+from ingestion.load_pdfs import load_all_pdfs   # step 1: Blob -> PyMuPDF4LLM -> markdown
 
 
 def main() -> None:
     started = time.time()                       # note the start time
 
-    print("STEP 1  PDFs -> markdown  (Blob Storage + Document Intelligence, cached)")
-    documents = load_all_pdfs()                 # analyses only the reports not already cached
+    print("STEP 1  PDFs -> markdown  (Blob Storage + PyMuPDF4LLM, cached)")
+    documents = load_all_pdfs()                 # converts only the reports not already cached
 
     print("\nSTEP 2  markdown -> chunks  (runs locally)")
     chunks = chunk_all_documents(documents)     # cut every report into labelled chunks

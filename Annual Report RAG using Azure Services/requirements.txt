@@ -4,10 +4,10 @@
 # --- Azure services ---
 openai                          # includes AzureOpenAI, the client for Azure OpenAI
 azure-search-documents          # Azure AI Search: create the index, upload chunks, search
-azure-ai-documentintelligence   # Azure AI Document Intelligence: PDF -> markdown
 azure-storage-blob              # Azure Blob Storage: upload and download the PDFs
 
 # --- pipeline ---
+pymupdf4llm                     # PDF -> markdown, free and local (replaces Document Intelligence)
 langgraph                       # the graph: steps, routing, and the pause for human review
 langchain-text-splitters        # cuts markdown into chunks at headings and paragraphs
 numpy                           # maths for the topic check's similarity scores
