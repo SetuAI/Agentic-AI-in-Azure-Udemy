@@ -54,8 +54,9 @@ def embed_question(question: str) -> List[float]:
     response = openai_client().embeddings.create(  # one call to Azure OpenAI
         model=config.EMBEDDING_DEPLOYMENT,      # must match ingestion, or the numbers are not comparable
         input=[question],                       # a list with one text in it
+        dimensions=config.EMBEDDING_DIMENSIONS, # same length as the indexed vectors
     )
-    return response.data[0].embedding           # the 1,536 numbers for the question
+    return response.data[0].embedding           # the EMBEDDING_DIMENSIONS numbers for the question
 
 
 def odata_quote(value: str) -> str:

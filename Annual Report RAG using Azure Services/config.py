@@ -94,7 +94,7 @@ GENERATION_DEPLOYMENT = os.getenv("AZURE_OPENAI_GENERATION_DEPLOYMENT", "gpt-4o"
 GUARDRAIL_DEPLOYMENT = os.getenv("AZURE_OPENAI_GUARDRAIL_DEPLOYMENT", "gpt-4o-mini")   # cheaper model for yes/no checks
 EMBEDDING_DEPLOYMENT = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small")  # turns text into vectors
 
-EMBEDDING_DIMENSIONS = 1536                     # length of each vector text-embedding-3-small returns; the index must match
+EMBEDDING_DIMENSIONS = 512                      # vector length we ask text-embedding-3-small for (native 1,536); the index must match
 
 
 # ==============================================================================

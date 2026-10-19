@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Annual Report RAG</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --surface: #ffffff; --surface-2: #f0eee8; --border: #e2dfd6;
+    --text: #1d1c1a; --muted: #6b6860; --faint: #a19d93;
+    --accent: #3a5bd9; --accent-soft: #e6ebfc;
+    --up: #1f8a5b; --up-soft: #e1f3ea; --down: #c2452d; --down-soft: #fbe6e1;
+    --warn: #b7791f; --warn-soft: #fbf0dc; --drop: #c9c5bb;
+    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413; --surface: #1d1d1b; --surface-2: #262623; --border: #33322e;
+      --text: #ecebe6; --muted: #a29f96; --faint: #6f6c64;
+      --accent: #7d97f5; --accent-soft: #232b48;
+      --up: #4cc28c; --up-soft: #17302a; --down: #ef7a62; --down-soft: #3a211b;
+      --warn: #e2a84b; --warn-soft: #362a16; --drop: #4a4842;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 28px 16px 80px; }
+  header h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -.01em; }
+  header p { margin: 0; color: var(--muted); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+          box-shadow: var(--shadow); padding: 20px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+       margin: 0 0 14px; font-weight: 600; }
+
+  /* query */
+  #ask { margin-top: 22px; display: grid; gap: 12px; }
+  textarea { width: 100%; min-height: 70px; resize: vertical; font: inherit; font-size: 16px;
+             padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border);
+             background: var(--surface-2); color: var(--text); }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .seg button { border: 0; background: transparent; color: var(--muted); padding: 9px 16px; font: inherit; cursor: pointer; }
+  .seg button.on { background: var(--accent); color: #fff; }
+  .go { margin-left: auto; border: 0; border-radius: 10px; background: var(--accent); color: #fff;
+        padding: 10px 22px; font: inherit; font-weight: 600; cursor: pointer; }
+  .go:disabled { opacity: .55; cursor: progress; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 999px;
+          padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .chip:hover { color: var(--text); border-color: var(--faint); }
+
+  /* pipeline */
+  #pipeline { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 22px 0; }
+  .step { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface);
+          font-size: 13px; position: relative; overflow: hidden; }
+  .step b { display: block; font-size: 13px; }
+  .step span { color: var(--muted); font-size: 12px; }
+  .step.run { border-color: var(--accent); }
+  .step.run::after { content: ""; position: absolute; left: 0; bottom: 0; height: 3px; width: 40%;
+                     background: var(--accent); animation: slide 1.1s infinite ease-in-out; }
+  .step.ok { border-color: var(--up); } .step.ok b::before { content: "✓ "; color: var(--up); }
+  .step.warn { border-color: var(--warn); } .step.warn b::before { content: "! "; color: var(--warn); }
+  .step.bad { border-color: var(--down); } .step.bad b::before { content: "✕ "; color: var(--down); }
+  .step.skip { opacity: .45; }
+  @keyframes slide { 0% { left: -40%; } 100% { left: 100%; } }
+
+  /* answer */
+  #answer { display: none; margin-bottom: 22px; }
+  .verdict { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+             font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  .v-grounded { background: var(--up-soft); color: var(--up); }
+  .v-needs_review { background: var(--warn-soft); color: var(--warn); }
+  .v-ungrounded, .v-blocked, .v-rejected { background: var(--down-soft); color: var(--down); }
+  .answer-body { font-size: 16px; line-height: 1.65; }
+  .answer-body h3, .answer-body h4 { margin: 18px 0 6px; font-size: 16px; }
+  .answer-body ul { padding-left: 20px; }
+  .meter { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; width: 160px; }
+  .meter i { display: block; height: 100%; background: var(--up); }
+  .meta { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; color: var(--muted); font-size: 13px; }
+  .flags { margin: 12px 0 0; padding: 12px 14px; border-radius: 10px; background: var(--warn-soft); font-size: 13px; }
+  .flags li { margin: 2px 0; }
+  .review { margin-top: 16px; border-top: 1px dashed var(--border); padding-top: 16px; }
+  .review textarea { min-height: 60px; font-size: 14px; }
+  .btn { border: 1px solid var(--border); background: var(--surface-2); color: var(--text); padding: 8px 16px;
+         border-radius: 9px; font: inherit; cursor: pointer; }
+  .btn.ok { background: var(--up); color: #fff; border-color: var(--up); }
+  .btn.no { background: transparent; color: var(--down); border-color: var(--down); }
+  details.draft { margin-top: 12px; font-size: 14px; color: var(--muted); }
+
+  /* retrieval */
+  #retrieval { display: none; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+  .tabs button { border: 1px solid var(--border); background: var(--surface); color: var(--muted); padding: 7px 16px;
+                 border-radius: 9px; font: inherit; cursor: pointer; }
+  .tabs button.on { color: var(--text); border-color: var(--text); font-weight: 600; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .stat { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+  .stat b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 12px; color: var(--muted); }
+  .grid3 { display: grid; grid-template-columns: minmax(0,1fr) 300px minmax(0,1fr); gap: 16px; align-items: start; }
+  .col-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .col-title small { color: var(--muted); font-weight: 400; }
+  .chunk { border: 1px solid var(--border); border-radius: 9px; padding: 7px 10px; margin-bottom: 5px;
+           font-size: 12.5px; cursor: pointer; background: var(--surface); transition: border-color .12s, background .12s; }
+  .chunk.dropped { opacity: .55; }
+  .chunk.hl { border-color: var(--accent); background: var(--accent-soft); opacity: 1; }
+  .chunk .top { display: flex; align-items: center; gap: 8px; }
+  .rank { font: 600 12px var(--mono); min-width: 26px; color: var(--muted); }
+  .bar { flex: 1; height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 99px; }
+  .score { font: 12px var(--mono); color: var(--muted); min-width: 52px; text-align: right; }
+  .move { font: 600 11px var(--mono); padding: 1px 6px; border-radius: 6px; }
+  .move.up { color: var(--up); background: var(--up-soft); } .move.down { color: var(--down); background: var(--down-soft); }
+  .move.same { color: var(--muted); background: var(--surface-2); }
+  .snippet { color: var(--muted); margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .chunk.open .snippet { -webkit-line-clamp: unset; white-space: pre-wrap; color: var(--text); }
+  .kept .chunk { padding: 10px 12px; }
+  .kept .snippet { -webkit-line-clamp: 4; }
+  svg text { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
+  .legend { display: flex; gap: 12px; font-size: 12px; color: var(--muted); justify-content: center; margin-top: 6px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+  .err { color: var(--down); background: var(--down-soft); padding: 12px 14px; border-radius: 10px; margin-top: 14px; display: none; white-space: pre-wrap; }
+
+  @media (max-width: 980px) {
+    .grid3 { grid-template-columns: 1fr; }
+    #slope-col { order: -1; }
+    #pipeline { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 560px) {
+    #pipeline { grid-template-columns: repeat(2, 1fr); }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .go { margin-left: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Annual Report RAG</h1>
+    <p>Ask a question comparing FY2025 and FY2026. See what hybrid search found, how the semantic ranker re-ordered it, and the answer it produced.</p>
+  </header>
+
+  <form id="ask" class="card">
+    <textarea id="q" placeholder="e.g. How did revenue change between the two years?"></textarea>
+    <div class="row">
+      <div class="seg" id="companies"></div>
+      <button class="go" id="go" type="submit">Ask</button>
+    </div>
+    <div class="chips" id="examples"></div>
+    <div class="err" id="err"></div>
+  </form>
+
+  <div id="pipeline"></div>
+
+  <section id="answer" class="card"></section>
+
+  <section id="retrieval" class="card">
+    <h2>Retrieval — before and after reranking</h2>
+    <div class="tabs" id="tabs"></div>
+    <div class="stats" id="stats"></div>
+    <div class="grid3">
+      <div>
+        <div class="col-title">Before: hybrid search <small>keyword + vector score</small></div>
+        <div id="before"></div>
+      </div>
+      <div id="slope-col">
+        <div class="col-title" style="justify-content:center">How positions changed</div>
+        <svg id="slope" width="100%"></svg>
+        <div class="legend">
+          <span><i style="background:var(--up)"></i>promoted</span>
+          <span><i style="background:var(--down)"></i>demoted</span>
+          <span><i style="background:var(--drop)"></i>dropped</span>
+        </div>
+      </div>
+      <div class="kept">
+        <div class="col-title">After: semantic ranker <small>score 0 – 4</small></div>
+        <div id="after"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const EXAMPLES = [
+  "How did revenue change between the two years?",
+  "How did the company's disclosure of currency risk change between the two years?",
+  "What changed in employee headcount and attrition?",
+  "How did net profit and operating margin move?",
+];
+const STEPS = [
+  ["guard", "Input guardrails", "safety + topic"],
+  ["search", "Hybrid search", "keyword + vector"],
+  ["rerank", "Semantic ranker", "top 20 → 5"],
+  ["gen", "Generate", "Azure OpenAI"],
+  ["ground", "Grounding check", "numbers traced?"],
+  ["final", "Answer", "or human review"],
+];
+
+let company = null, result = null, activeYear = null, timers = [];
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ---------- setup ---------- */
+fetch("/api/config").then(r => r.json()).then(cfg => {
+  company = cfg.companies.includes("Infosys") ? "Infosys" : cfg.companies[0];
+  $("companies").innerHTML = cfg.companies.map(c =>
+    `<button type="button" data-c="${esc(c)}" class="${c === company ? "on" : ""}">${esc(c)}</button>`).join("");
+  $("companies").onclick = e => {
+    const b = e.target.closest("button"); if (!b) return;
+    company = b.dataset.c;
+    [...$("companies").children].forEach(x => x.classList.toggle("on", x === b));
+  };
+});
+$("examples").innerHTML = EXAMPLES.map(q => `<button type="button" class="chip">${esc(q)}</button>`).join("");
+$("examples").onclick = e => { if (e.target.classList.contains("chip")) { $("q").value = e.target.textContent; $("q").focus(); } };
+$("q").addEventListener("keydown", e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) $("ask").requestSubmit(); });
+renderPipeline({});
+
+/* ---------- pipeline stepper ---------- */
+function renderPipeline(status) {
+  $("pipeline").innerHTML = STEPS.map(([k, t, s]) =>
+    `<div class="step ${status[k] || ""}"><b>${t}</b><span>${s}</span></div>`).join("");
+}
+function animatePipeline() {
+  // the server answers in one go, so this just walks the steps while we wait
+  timers.forEach(clearTimeout); timers = [];
+  const st = {}; let i = 0;
+  const tick = () => {
+    if (i > 0) st[STEPS[i - 1][0]] = "ok";
+    if (i < STEPS.length - 1) { st[STEPS[i][0]] = "run"; renderPipeline(st); i++; timers.push(setTimeout(tick, [1500, 2500, 1500, 6000, 4000][i - 1] || 3000)); }
+  };
+  tick();
+}
+function finalPipeline(r) {
+  timers.forEach(clearTimeout);
+  if (!r.input_allowed) return renderPipeline({ guard: "bad", search: "skip", rerank: "skip", gen: "skip", ground: "skip", final: "skip" });
+  const v = r.grounding_verdict;
+  renderPipeline({ guard: "ok", search: "ok", rerank: "ok", gen: "ok",
+    ground: v === "grounded" ? "ok" : v === "needs_review" ? "warn" : "bad",
+    final: r.paused ? "warn" : r.review_decision === "rejected" ? "bad" : "ok" });
+}
+
+/* ---------- ask ---------- */
+$("ask").onsubmit = async e => {
+  e.preventDefault();
+  const question = $("q").value.trim(); if (!question) return;
+  $("err").style.display = "none"; $("go").disabled = true; $("go").textContent = "Thinking…";
+  $("answer").style.display = "none"; $("retrieval").style.display = "none";
+  animatePipeline();
+  try { show(await post("/api/query", { question, company })); }
+  catch (err) { fail(err); }
+  finally { $("go").disabled = false; $("go").textContent = "Ask"; }
+};
+async function post(url, body) {
+  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+function fail(err) {
+  timers.forEach(clearTimeout); renderPipeline({});
+  $("err").textContent = err.message; $("err").style.display = "block";
+}
+
+function show(r) {
+  result = r; finalPipeline(r); renderAnswer(r);
+  const years = Object.keys(r.years || {});
+  if (!years.length) return;
+  activeYear = years.includes(activeYear) ? activeYear : years[0];
+  $("tabs").innerHTML = years.map(y => `<button data-y="${y}" class="${y === activeYear ? "on" : ""}">${y}</button>`).join("");
+  $("tabs").onclick = e => { const b = e.target.closest("button"); if (!b) return; activeYear = b.dataset.y; show(result); };
+  $("retrieval").style.display = "block";
+  renderYear(r.years[activeYear]);
+}
+
+/* ---------- answer ---------- */
+function md(text) {
+  // a small, safe markdown subset: headings, bullets, bold, italics, paragraphs
+  const lines = esc(text || "").split("\n"); let html = "", inList = false;
+  for (let line of lines) {
+    line = line.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/(^|\W)\*(?!\s)(.+?)\*(?=\W|$)/g, "$1<i>$2</i>");
+    const li = line.match(/^\s*(?:[-*•]|\d+\.)\s+(.*)/);
+    if (li) { if (!inList) { html += "<ul>"; inList = true; } html += `<li>${li[1]}</li>`; continue; }
+    if (inList) { html += "</ul>"; inList = false; }
+    const h = line.match(/^(#{1,4})\s+(.*)/);
+    if (h) html += `<h${h[1].length < 3 ? 3 : 4}>${h[2]}</h${h[1].length < 3 ? 3 : 4}>`;
+    else if (line.trim()) html += `<p>${line}</p>`;
+  }
+  return html + (inList ? "</ul>" : "");
+}
+
+function renderAnswer(r) {
+  const box = $("answer"); box.style.display = "block";
+  if (!r.input_allowed) {
+    box.innerHTML = `<h2>Answer</h2><div class="meta"><span class="verdict v-blocked">Blocked by input guardrail</span>
+      <span>${esc(r.input_block_reason)}</span></div><div class="answer-body">${md(r.final_answer)}</div>`;
+    return;
+  }
+  const v = r.grounding_verdict || "unknown", pct = Math.round((r.grounding_score || 0) * 100);
+  const flags = r.unsupported_items.length
+    ? `<ul class="flags">${r.unsupported_items.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  let body;
+  if (r.paused) {
+    body = `<p style="color:var(--warn);font-weight:600">The grounding check could not verify this draft. It has not been shown to the user yet. Review it below.</p>
+      <div class="answer-body">${md(r.draft_answer)}</div>${flags}
+      <div class="review">
+        <textarea id="note" placeholder="Optional: write a corrected answer. Leave empty to approve the draft as written."></textarea>
+        <div class="row" style="margin-top:10px">
+          <button class="btn ok" id="approve">Approve</button>
+          <button class="btn no" id="reject">Reject</button>
+        </div>
+      </div>`;
+  } else {
+    const decided = r.review_decision ? `<span class="verdict v-${r.review_decision}">reviewer ${esc(r.review_decision)}</span>` : "";
+    body = `<div class="answer-body">${md(r.final_answer)}</div>${flags}
+      ${r.draft_answer && r.draft_answer !== r.final_answer
+        ? `<details class="draft"><summary>Model's original draft</summary><div class="answer-body">${md(r.draft_answer)}</div></details>` : ""}`;
+    box.innerHTML = `<h2>Answer</h2>`;
+    body = `<div class="meta">${verdictMeta(v, pct)}${decided}</div>` + body;
+    box.innerHTML += body; return;
+  }
+  box.innerHTML = `<h2>Answer — awaiting review</h2><div class="meta">${verdictMeta(v, pct)}</div>${body}`;
+  const review = async decision => {
+    $("approve").disabled = $("reject").disabled = true;
+    try { show(await post("/api/review", { thread_id: r.thread_id, decision, note: $("note").value })); }
+    catch (err) { fail(err); }
+  };
+  $("approve").onclick = () => review("approved");
+  $("reject").onclick = () => review("rejected");
+}
+function verdictMeta(v, pct) {
+  return `<span class="verdict v-${esc(v)}">${esc(v.replace("_", " "))}</span>
+    <span style="display:flex;align-items:center;gap:8px">grounding <span class="meter"><i style="width:${pct}%"></i></span> ${pct}%</span>
+    <span>${esc(result.company)} · FY2025 vs FY2026</span>`;
+}
+
+/* ---------- retrieval ---------- */
+function renderYear(y) {
+  const cands = y.candidates;
+  const byKey = Object.fromEntries(cands.map(c => [c.key, c]));
+  const kept = y.kept_keys.map(k => byKey[k]).filter(Boolean);
+  const maxHybrid = Math.max(...cands.map(c => c.hybrid_score), 1e-9);
+  const moves = kept.map(c => c.hybrid_rank - c.semantic_rank);
+  const fromOutside = kept.filter(c => c.hybrid_rank > kept.length).length;
+
+  $("stats").innerHTML = [
+    [cands.length, "candidates from hybrid search"],
+    [kept.length, "kept by semantic ranker"],
+    [fromOutside, `kept from outside hybrid top ${kept.length}`],
+    [moves.length ? Math.max(...moves.map(Math.abs)) : 0, "biggest jump (places)"],
+  ].map(([n, l]) => `<div class="stat"><b>${n}</b><span>${l}</span></div>`).join("");
+
+  $("before").innerHTML = cands.map(c => `
+    <div class="chunk ${c.semantic_rank ? "" : "dropped"}" data-key="${esc(c.key)}">
+      <div class="top"><span class="rank">#${c.hybrid_rank}</span>
+        <span class="bar"><i style="width:${(c.hybrid_score / maxHybrid) * 100}%;background:${c.semantic_rank ? "var(--accent)" : "var(--drop)"}"></i></span>
+        <span class="score" title="hybrid score">${c.hybrid_score.toFixed(4)}</span></div>
+      <div class="snippet">${esc(c.text)}</div>
+    </div>`).join("");
+
+  $("after").innerHTML = kept.map(c => {
+    const m = c.hybrid_rank - c.semantic_rank;
+    const mv = m > 0 ? `<span class="move up">▲ ${m}</span>` : m < 0 ? `<span class="move down">▼ ${-m}</span>` : `<span class="move same">=</span>`;
+    const rs = c.reranker_score ?? 0;
+    return `<div class="chunk" data-key="${esc(c.key)}">
+      <div class="top"><span class="rank">#${c.semantic_rank}</span>
+        <span class="bar"><i style="width:${(rs / 4) * 100}%;background:var(--up)"></i></span>
+        <span class="score" title="semantic ranker score">${rs.toFixed(2)}</span>${mv}</div>
+      <div class="snippet">${esc(c.text)}</div>
+      <div style="font-size:11px;color:var(--faint);margin-top:4px">was hybrid #${c.hybrid_rank} · hybrid ${c.hybrid_score.toFixed(4)} · chunk ${c.position} · ${esc(c.year_label)}</div>
+    </div>`;
+  }).join("");
+
+  drawSlope(cands, kept);
+
+  for (const el of document.querySelectorAll("#before .chunk, #after .chunk")) {
+    el.onmouseenter = () => highlight(el.dataset.key);
+    el.onmouseleave = () => highlight(null);
+    el.onclick = () => el.classList.toggle("open");
+  }
+}
+
+function drawSlope(cands, kept) {
+  const svg = $("slope"), W = 300, rowH = 22, top = 26, H = top + cands.length * rowH + 6;
+  const xL = 46, xR = W - 46, yAt = r => top + (r - 0.5) * rowH;
+  const keptGap = (cands.length * rowH) / Math.max(kept.length, 1);
+  const yKept = r => top + (r - 0.5) * keptGap;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("height", H);
+  let s = `<text x="${xL}" y="14" text-anchor="middle">hybrid</text><text x="${xR}" y="14" text-anchor="middle">semantic</text>`;
+  for (const c of cands) {
+    const y1 = yAt(c.hybrid_rank);
+    if (c.semantic_rank) {
+      const y2 = yKept(c.semantic_rank), m = c.hybrid_rank - c.semantic_rank;
+      const col = m > 0 ? "var(--up)" : m < 0 ? "var(--down)" : "var(--faint)";
+      s += `<path class="ln" data-key="${esc(c.key)}" d="M${xL + 12},${y1} C${W / 2},${y1} ${W / 2},${y2} ${xR - 12},${y2}"
+              fill="none" stroke="${col}" stroke-width="2.2" opacity=".85"/>`;
+      s += `<circle cx="${xR}" cy="${y2}" r="11" fill="${col}" class="dot" data-key="${esc(c.key)}"/>
+            <text x="${xR}" y="${y2 + 4}" text-anchor="middle" style="fill:#fff;font-weight:600">${c.semantic_rank}</text>`;
+    } else {
+      s += `<path class="ln" data-key="${esc(c.key)}" d="M${xL + 12},${y1} L${xL + 40},${y1}" stroke="var(--drop)" stroke-width="1.5" stroke-dasharray="3 3"/>`;
+    }
+    s += `<circle cx="${xL}" cy="${y1}" r="9" fill="${c.semantic_rank ? "var(--accent)" : "var(--surface-2)"}"
+            stroke="${c.semantic_rank ? "none" : "var(--drop)"}" class="dot" data-key="${esc(c.key)}"/>
+          <text x="${xL}" y="${y1 + 4}" text-anchor="middle" style="${c.semantic_rank ? "fill:#fff;font-weight:600" : ""}">${c.hybrid_rank}</text>`;
+  }
+  svg.innerHTML = s;
+  for (const el of svg.querySelectorAll("[data-key]")) {
+    el.style.cursor = "pointer";
+    el.onmouseenter = () => highlight(el.dataset.key);
+    el.onmouseleave = () => highlight(null);
+  }
+}
+
+function highlight(key) {
+  for (const el of document.querySelectorAll(".chunk")) el.classList.toggle("hl", el.dataset.key === key);
+  for (const el of $("slope").querySelectorAll(".ln")) {
+    el.style.opacity = key == null ? ".85" : el.dataset.key === key ? "1" : ".12";
+    el.style.strokeWidth = el.dataset.key === key ? "4" : "";
+  }
+}
+</script>
+</body>
+</html>

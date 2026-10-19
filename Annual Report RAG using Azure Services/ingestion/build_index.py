@@ -77,7 +77,7 @@ def build_index_definition():
             name="embedding",                                                       # field name
             type=SearchFieldDataType.Collection(SearchFieldDataType.Single),        # a list of decimal numbers
             searchable=True,                                                        # vectors must be searchable
-            vector_search_dimensions=config.EMBEDDING_DIMENSIONS,                   # exactly 1,536 numbers each
+            vector_search_dimensions=config.EMBEDDING_DIMENSIONS,                   # exactly EMBEDDING_DIMENSIONS numbers each
             vector_search_profile_name="default-vector-profile",                    # use the profile defined below
         ),
     ]
@@ -129,8 +129,9 @@ def embed_texts(texts: List[str], verbose: bool = True) -> List[List[float]]:
         response = openai_client().embeddings.create(        # one API call for the whole batch
             model=config.EMBEDDING_DEPLOYMENT,  # on Azure this is the DEPLOYMENT name, not the model name
             input=batch,                        # the texts to embed
+            dimensions=config.EMBEDDING_DIMENSIONS,  # shorten each vector to match the index
         )
-        embeddings.extend(item.embedding for item in response.data)  # one list of 1,536 numbers per text
+        embeddings.extend(item.embedding for item in response.data)  # one list of EMBEDDING_DIMENSIONS numbers per text
         if verbose:                             # show progress -- this step takes a while
             print(f"    embedded {min(start + EMBEDDING_BATCH_SIZE, len(texts)):>6,} / {len(texts):,}")
     return embeddings                           # same length and order as texts

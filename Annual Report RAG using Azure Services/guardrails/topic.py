@@ -93,8 +93,9 @@ def check_by_keywords(question: str) -> Optional[TopicDecision]:
 
 def embed_texts(texts: List[str]) -> np.ndarray:
     """Embed texts with Azure OpenAI and return them as a numpy table (one row per text)."""
-    response = openai_client().embeddings.create(model=config.EMBEDDING_DEPLOYMENT, input=texts)  # one call
-    return np.array([item.embedding for item in response.data])  # rows of 1,536 numbers
+    response = openai_client().embeddings.create(model=config.EMBEDDING_DEPLOYMENT, input=texts,
+                                           dimensions=config.EMBEDDING_DIMENSIONS)  # one call
+    return np.array([item.embedding for item in response.data])  # rows of EMBEDDING_DIMENSIONS numbers
 
 
 def cosine_similarity(vector: np.ndarray, matrix: np.ndarray) -> np.ndarray:
