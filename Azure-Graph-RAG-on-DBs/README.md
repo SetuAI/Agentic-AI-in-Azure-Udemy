@@ -170,6 +170,12 @@ Full descriptions, columns and links are in **[tables.md](tables.md)**.
 
 ## 🏗️ Architecture
 
+[![End-to-end architecture: build time (data plane and metadata pipeline), run time (Entra ID, App Service, the 11 LangGraph steps, Content Safety, Azure OpenAI, Application Insights) and the PostgreSQL server with mf_data and agent_meta](docs/architecture/architecture-preview.png)](docs/architecture/architecture-preview.png)
+
+<sub>*Click the image to see it full size. To edit it, open [`docs/architecture/architecture.excalidraw`](docs/architecture/architecture.excalidraw) at [excalidraw.com](https://excalidraw.com) (☰ → Open).*</sub>
+
+The same flow in brief:
+
 ```mermaid
 graph LR
     U([User]) -->|HTTPS| E[Microsoft Entra ID<br/>sign-in]
