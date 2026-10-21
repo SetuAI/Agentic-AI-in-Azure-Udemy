@@ -1,0 +1,232 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2300" height="1760" viewBox="0 0 2300 1760" font-family="Helvetica, Arial, sans-serif"><rect width="100%" height="100%" fill="#fff"/>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker></defs>
+<rect x="40" y="130" width="640" height="1110" rx="12" fill="#f1f3f5" fill-opacity="0.55" stroke="#495057" stroke-width="2" stroke-dasharray="8 6"/>
+<rect x="80" y="245" width="250" height="62" rx="12" fill="#d0ebff" fill-opacity="1.0" stroke="#1971c2" stroke-width="2"/>
+<rect x="80" y="337" width="250" height="62" rx="12" fill="#d0ebff" fill-opacity="1.0" stroke="#1971c2" stroke-width="2"/>
+<rect x="80" y="429" width="250" height="62" rx="12" fill="#d0ebff" fill-opacity="1.0" stroke="#1971c2" stroke-width="2"/>
+<polyline points="205.0,307.0 205.0,337.0" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#ah)"/>
+<polyline points="205.0,399.0 205.0,429.0" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="80" y="585" width="250" height="74" rx="12" fill="#e5dbff" fill-opacity="1.0" stroke="#6741d9" stroke-width="2"/>
+<rect x="80" y="699" width="250" height="74" rx="12" fill="#d3f9d8" fill-opacity="1.0" stroke="#2f9e44" stroke-width="2"/>
+<rect x="80" y="813" width="250" height="74" rx="12" fill="#e5dbff" fill-opacity="1.0" stroke="#6741d9" stroke-width="2"/>
+<polyline points="205.0,659.0 205.0,699.0" fill="none" stroke="#6741d9" stroke-width="2" marker-end="url(#ah)"/>
+<polyline points="205.0,773.0 205.0,813.0" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="80" y="940" width="570" height="120" rx="12" fill="#f1f3f5" fill-opacity="1.0" stroke="#495057" stroke-width="2"/>
+<rect x="730" y="130" width="1530" height="1110" rx="12" fill="#e7f5ff" fill-opacity="0.55" stroke="#1864ab" stroke-width="2" stroke-dasharray="8 6"/>
+<ellipse cx="870.0" cy="223.0" rx="100.0" ry="31.0" fill="#f1f3f5" stroke="#495057" stroke-width="2"/>
+<rect x="770" y="280" width="200" height="110" rx="12" fill="#e3fafc" fill-opacity="1.0" stroke="#0b7285" stroke-width="2"/>
+<polyline points="870.0,254.0 870.0,280.0" fill="none" stroke="#0b7285" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="880.8" y="255.875" width="48.400000000000006" height="22.25" rx="12" fill="#ffffff" fill-opacity="1.0" stroke="#ffffff" stroke-width="1"/>
+<rect x="1000" y="210" width="760" height="1010" rx="12" fill="#e7f5ff" fill-opacity="0.55" stroke="#1864ab" stroke-width="2"/>
+<rect x="1030" y="295" width="330" height="78" rx="12" fill="#f1f3f5" fill-opacity="1.0" stroke="#495057" stroke-width="2"/>
+<rect x="1400" y="295" width="330" height="78" rx="12" fill="#f1f3f5" fill-opacity="1.0" stroke="#495057" stroke-width="2"/>
+<polyline points="1360.0,334.0 1400.0,334.0" fill="none" stroke="#1e1e1e" stroke-width="2" marker-start="url(#ah)" marker-end="url(#ah)"/>
+<polyline points="970,334 1030,334" fill="none" stroke="#0b7285" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="1030" y="405" width="700" height="800" rx="12" fill="#f1f3f5" fill-opacity="0.55" stroke="#495057" stroke-width="2"/>
+<rect x="1054" y="461" width="652" height="52" rx="12" fill="#ffe8cc" fill-opacity="1.0" stroke="#e8590c" stroke-width="2"/>
+<rect x="1054" y="525" width="652" height="52" rx="12" fill="#e5dbff" fill-opacity="1.0" stroke="#6741d9" stroke-width="2"/>
+<rect x="1054" y="589" width="652" height="52" rx="12" fill="#c3fae8" fill-opacity="1.0" stroke="#0c8599" stroke-width="2"/>
+<rect x="1054" y="653" width="652" height="52" rx="12" fill="#c3fae8" fill-opacity="1.0" stroke="#0c8599" stroke-width="2"/>
+<rect x="1054" y="717" width="652" height="52" rx="12" fill="#ffe3e3" fill-opacity="1.0" stroke="#c92a2a" stroke-width="2"/>
+<rect x="1054" y="781" width="652" height="52" rx="12" fill="#e5dbff" fill-opacity="1.0" stroke="#6741d9" stroke-width="2"/>
+<rect x="1054" y="845" width="652" height="52" rx="12" fill="#d0ebff" fill-opacity="1.0" stroke="#1971c2" stroke-width="2"/>
+<rect x="1054" y="909" width="652" height="52" rx="12" fill="#d0ebff" fill-opacity="1.0" stroke="#1971c2" stroke-width="2"/>
+<rect x="1054" y="973" width="652" height="52" rx="12" fill="#f1f3f5" fill-opacity="1.0" stroke="#495057" stroke-width="2"/>
+<rect x="1054" y="1037" width="652" height="52" rx="12" fill="#e5dbff" fill-opacity="1.0" stroke="#6741d9" stroke-width="2"/>
+<rect x="1054" y="1101" width="652" height="52" rx="12" fill="#f1f3f5" fill-opacity="1.0" stroke="#495057" stroke-width="2"/>
+<polyline points="1380.0,513.0 1380.0,525.0" fill="none" stroke="#495057" stroke-width="2" marker-end="url(#ah)"/>
+<polyline points="1380.0,577.0 1380.0,589.0" fill="none" stroke="#495057" stroke-width="2" marker-end="url(#ah)"/>
+<polyline points="1380.0,641.0 1380.0,653.0" fill="none" stroke="#495057" stroke-width="2" marker-end="url(#ah)"/>
+<polyline points="1380.0,705.0 1380.0,717.0" fill="none" stroke="#495057" stroke-width="2" marker-end="url(#ah)"/>
+<polyline points="1380.0,769.0 1380.0,781.0" fill="none" stroke="#495057" stroke-width="2" marker-end="url(#ah)"/>
+<polyline points="1380.0,833.0 1380.0,845.0" fill="none" stroke="#495057" stroke-width="2" marker-end="url(#ah)"/>
+<polyline points="1380.0,897.0 1380.0,909.0" fill="none" stroke="#495057" stroke-width="2" marker-end="url(#ah)"/>
+<polyline points="1380.0,961.0 1380.0,973.0" fill="none" stroke="#495057" stroke-width="2" marker-end="url(#ah)"/>
+<polyline points="1380.0,1025.0 1380.0,1037.0" fill="none" stroke="#495057" stroke-width="2" marker-end="url(#ah)"/>
+<polyline points="1380.0,1089.0 1380.0,1101.0" fill="none" stroke="#495057" stroke-width="2" marker-end="url(#ah)"/>
+<polyline points="1565,373 1565,461" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#ah)"/>
+<polyline points="1054,925 1040,925 1040,807 1054,807" fill="none" stroke="#c92a2a" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#ah)"/>
+<rect x="1820" y="280" width="400" height="100" rx="12" fill="#e9fac8" fill-opacity="1.0" stroke="#5c940d" stroke-width="2"/>
+<rect x="1820" y="437" width="400" height="100" rx="12" fill="#ffe8cc" fill-opacity="1.0" stroke="#e8590c" stroke-width="2"/>
+<rect x="1820" y="641" width="400" height="150" rx="12" fill="#e5dbff" fill-opacity="1.0" stroke="#6741d9" stroke-width="2"/>
+<polyline points="1730,334 1790,334 1820,334" fill="none" stroke="#5c940d" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#ah)"/>
+<rect x="1762.16" y="304.875" width="55.68000000000001" height="22.25" rx="12" fill="#ffffff" fill-opacity="1.0" stroke="#ffffff" stroke-width="1"/>
+<polyline points="1706,487 1820,487" fill="none" stroke="#e8590c" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="1712.4" y="457.875" width="121.20000000000002" height="22.25" rx="12" fill="#ffffff" fill-opacity="1.0" stroke="#ffffff" stroke-width="1"/>
+<polyline points="1706,551 1792,551 1792,716 1820,716" fill="none" stroke="#6741d9" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="1727.76" y="649.875" width="128.48000000000002" height="22.25" rx="12" fill="#ffffff" fill-opacity="1.0" stroke="#ffffff" stroke-width="1"/>
+<rect x="1820" y="865" width="26" height="26" rx="12" fill="#e5dbff" fill-opacity="1.0" stroke="#6741d9" stroke-width="2"/>
+<rect x="2020" y="865" width="26" height="26" rx="12" fill="#c3fae8" fill-opacity="1.0" stroke="#0c8599" stroke-width="2"/>
+<rect x="1820" y="903" width="26" height="26" rx="12" fill="#ffe3e3" fill-opacity="1.0" stroke="#c92a2a" stroke-width="2"/>
+<rect x="2020" y="903" width="26" height="26" rx="12" fill="#d0ebff" fill-opacity="1.0" stroke="#1971c2" stroke-width="2"/>
+<rect x="1820" y="941" width="26" height="26" rx="12" fill="#ffe8cc" fill-opacity="1.0" stroke="#e8590c" stroke-width="2"/>
+<rect x="2020" y="941" width="26" height="26" rx="12" fill="#f1f3f5" fill-opacity="1.0" stroke="#495057" stroke-width="2"/>
+<rect x="1820" y="979" width="26" height="26" rx="12" fill="#d3f9d8" fill-opacity="1.0" stroke="#2f9e44" stroke-width="2"/>
+<rect x="40" y="1300" width="2220" height="420" rx="12" fill="#d0ebff" fill-opacity="0.55" stroke="#1971c2" stroke-width="2"/>
+<rect x="70" y="1390" width="1040" height="300" rx="12" fill="#d0ebff" fill-opacity="0.55" stroke="#1971c2" stroke-width="2"/>
+<rect x="95.0" y="1450" width="237.0" height="215" rx="12" fill="#d0ebff" fill-opacity="1.0" stroke="#1971c2" stroke-width="2"/>
+<rect x="346.0" y="1450" width="237.0" height="215" rx="12" fill="#d0ebff" fill-opacity="1.0" stroke="#1971c2" stroke-width="2"/>
+<rect x="597.0" y="1450" width="237.0" height="215" rx="12" fill="#d0ebff" fill-opacity="1.0" stroke="#1971c2" stroke-width="2"/>
+<rect x="848.0" y="1450" width="237.0" height="215" rx="12" fill="#d0ebff" fill-opacity="1.0" stroke="#1971c2" stroke-width="2"/>
+<rect x="1150" y="1390" width="1080" height="300" rx="12" fill="#e5dbff" fill-opacity="0.55" stroke="#6741d9" stroke-width="2"/>
+<rect x="1175.0" y="1450" width="247.0" height="215" rx="12" fill="#f1f3f5" fill-opacity="1.0" stroke="#495057" stroke-width="2"/>
+<rect x="1436.0" y="1450" width="247.0" height="215" rx="12" fill="#f1f3f5" fill-opacity="1.0" stroke="#495057" stroke-width="2"/>
+<rect x="1697.0" y="1450" width="247.0" height="215" rx="12" fill="#ffe3e3" fill-opacity="1.0" stroke="#c92a2a" stroke-width="2"/>
+<rect x="1958.0" y="1450" width="247.0" height="215" rx="12" fill="#c3fae8" fill-opacity="1.0" stroke="#0c8599" stroke-width="2"/>
+<polyline points="80,460 26,460 26,1540 70,1540" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="53.959999999999994" y="1258.875" width="92.08000000000001" height="22.25" rx="12" fill="#ffffff" fill-opacity="1.0" stroke="#ffffff" stroke-width="1"/>
+<polyline points="330,850 660,850 660,1282 1559.5,1282 1559.5,1390" fill="none" stroke="#6741d9" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="695.72" y="1270.875" width="208.56000000000003" height="22.25" rx="12" fill="#ffffff" fill-opacity="1.0" stroke="#ffffff" stroke-width="1"/>
+<polyline points="1054,947 985,947 985,1450" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="931.68" y="1236.875" width="106.64000000000001" height="22.25" rx="12" fill="#ffffff" fill-opacity="1.0" stroke="#ffffff" stroke-width="1"/>
+<polyline points="1706,743 1747.0,743 1747.0,1450" fill="none" stroke="#c92a2a" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="1697.32" y="1236.875" width="99.36000000000001" height="22.25" rx="12" fill="#ffffff" fill-opacity="1.0" stroke="#ffffff" stroke-width="1"/>
+<polyline points="1706,679 1778,679 1778,1265 2081.5,1265 2081.5,1450" fill="none" stroke="#0c8599" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="1944.5" y="1233.875" width="194.00000000000003" height="22.25" rx="12" fill="#ffffff" fill-opacity="1.0" stroke="#ffffff" stroke-width="1"/>
+<text x="40" y="60.0" font-size="36" font-family="Comic Sans MS, cursive" fill="#1e1e1e" text-anchor="start">Azure GraphRAG on Databases — end-to-end architecture</text>
+<text x="42" y="92.0" font-size="16" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">Plain-English questions over a 20-table mutual fund database. Tables are graph nodes, joins are hops. Every answer = a table + commentary + the exact, checked, read-only SQL.</text>
+<text x="56" y="160.0" font-size="20" font-family="Comic Sans MS, cursive" fill="#495057" text-anchor="start">① BUILD TIME  ·  run once, then after changes</text>
+<text x="56" y="180.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">Your laptop  ·  uv run …</text>
+<text x="80" y="228.0" font-size="18" font-family="Comic Sans MS, cursive" fill="#1971c2" text-anchor="start">Data plane  (dataplane/)</text>
+<text x="205.0" y="281.625" font-size="15" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">scripts/pg_setup.py</text>
+<text x="205.0" y="373.625" font-size="15" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">schema/apply_schema.py</text>
+<text x="205.0" y="465.625" font-size="15" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">generator.run</text>
+<text x="352" y="266.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">Create mf_data + agent_meta,</text>
+<text x="352" y="283.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">switch on pgvector + AGE</text>
+<text x="352" y="358.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">20 tables, keys, indexes,</text>
+<text x="352" y="375.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">60 monthly partitions</text>
+<text x="352" y="444.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">Synthetic AMC data + 6 planted</text>
+<text x="352" y="461.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">stories → 1,132,667 rows (COPY)</text>
+<text x="80" y="568.0" font-size="18" font-family="Comic Sans MS, cursive" fill="#6741d9" text-anchor="start">Metadata pipeline  (metadata/)</text>
+<text x="205.0" y="627.625" font-size="15" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">metadata.build</text>
+<text x="205.0" y="732.25" font-size="15" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">metadata.review</text>
+<text x="205.0" y="751.0" font-size="15" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">👤 human approves</text>
+<text x="205.0" y="855.625" font-size="15" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">metadata.publish</text>
+<text x="352" y="592.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">Reads mf_data&#x27;s catalog + samples</text>
+<text x="352" y="609.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">→ links: 19 declared FKs + 3 hidden</text>
+<text x="352" y="627.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">   (same name, value overlap)</text>
+<text x="352" y="644.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">→ drafts notes with gpt-5.1</text>
+<text x="352" y="720.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">Reject wrong links, approve the</text>
+<text x="352" y="737.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">rest. Nothing guessed is used</text>
+<text x="352" y="755.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">until a person approves it.</text>
+<text x="352" y="827.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">Approved notes + values →</text>
+<text x="352" y="844.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">embeddings (text-embedding-3-small)</text>
+<text x="352" y="862.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">Approved links → AGE graph</text>
+<text x="365.0" y="979.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">config/   models · agent · metrics (approved business definitions)</text>
+<text x="365.0" y="996.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">generator · pii · metadata</text>
+<text x="365.0" y="1014.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle"></text>
+<text x="365.0" y="1031.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">tests/   66 tests, stage by stage, against the real Azure services</text>
+<text x="80" y="1106.0" font-size="16" font-family="Comic Sans MS, cursive" fill="#c92a2a" text-anchor="start">Hidden links the pipeline discovered</text>
+<text x="80" y="1135.0" font-size="13" font-family="Menlo, monospace" fill="#1e1e1e" text-anchor="start">credit_rating_history.sec_cd → securities.security_code</text>
+<text x="80" y="1151.25" font-size="13" font-family="Menlo, monospace" fill="#1e1e1e" text-anchor="start">transactions.arn_code → distributors.arn_no</text>
+<text x="80" y="1167.5" font-size="13" font-family="Menlo, monospace" fill="#1e1e1e" text-anchor="start">scheme_aum_monthly.scheme_id → schemes.scheme_id</text>
+<text x="80" y="1193.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">each: 100% of values match, no foreign key declared</text>
+<text x="746" y="160.0" font-size="20" font-family="Comic Sans MS, cursive" fill="#1864ab" text-anchor="start">② RUN TIME  ·  every question</text>
+<text x="746" y="180.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">Azure subscription  ·  resource group fundgraph-rg-1</text>
+<text x="870.0" y="229.0" font-size="16" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">👤 User · browser</text>
+<text x="870.0" y="314.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">Microsoft Entra ID</text>
+<text x="870.0" y="331.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">sign-in (Easy Auth)</text>
+<text x="870.0" y="349.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">adds X-MS-CLIENT-</text>
+<text x="870.0" y="366.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">PRINCIPAL headers</text>
+<text x="905.0" y="271.875" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#0b7285" text-anchor="middle">HTTPS</text>
+<text x="1016" y="240.0" font-size="20" font-family="Comic Sans MS, cursive" fill="#1864ab" text-anchor="start">Azure App Service  ·  Linux · Python 3.13 · B1</text>
+<text x="1016" y="260.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">startup.sh → uvicorn api.main:app  ·  1 worker  ·  health check /health</text>
+<text x="1195.0" y="330.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">Web UI  (ui/index.html)</text>
+<text x="1195.0" y="348.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">trace · graph · records · SQL</text>
+<text x="1565.0" y="330.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">FastAPI  (api/main.py)</text>
+<text x="1565.0" y="348.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">/query · /schema-graph · /table-counts</text>
+<text x="1046" y="433.0" font-size="18" font-family="Comic Sans MS, cursive" fill="#495057" text-anchor="start">LangGraph agent  ·  11 fixed steps  (agent/)</text>
+<text x="1380.0" y="492.25" font-size="14" font-family="Menlo, monospace" fill="#1e1e1e" text-anchor="middle">1 · guard_input  —  Prompt Shields: block prompt attacks</text>
+<text x="1380.0" y="556.25" font-size="14" font-family="Menlo, monospace" fill="#1e1e1e" text-anchor="middle">2 · understand  —  rewrite · intent · period · metrics · data needed</text>
+<text x="1380.0" y="620.25" font-size="14" font-family="Menlo, monospace" fill="#1e1e1e" text-anchor="middle">3 · match_entities  —  names → exact DB values</text>
+<text x="1380.0" y="684.25" font-size="14" font-family="Menlo, monospace" fill="#1e1e1e" text-anchor="middle">4 · select_tables  —  metrics + each data need + table search</text>
+<text x="1380.0" y="748.25" font-size="14" font-family="Menlo, monospace" fill="#1e1e1e" text-anchor="middle">5 · find_join_path  —  shortest route  MATCH (a)-[*1..6]-(b)</text>
+<text x="1380.0" y="812.25" font-size="14" font-family="Menlo, monospace" fill="#1e1e1e" text-anchor="middle">6 · write_sql  —  one SELECT: given tables, joins, definitions</text>
+<text x="1380.0" y="876.25" font-size="14" font-family="Menlo, monospace" fill="#1e1e1e" text-anchor="middle">7 · check_sql  —  sqlglot rules + EXPLAIN cost</text>
+<text x="1380.0" y="940.25" font-size="14" font-family="Menlo, monospace" fill="#1e1e1e" text-anchor="middle">8 · run_sql  —  READ ONLY · 15 s timeout · 5,000-row cap</text>
+<text x="1380.0" y="1004.25" font-size="14" font-family="Menlo, monospace" fill="#1e1e1e" text-anchor="middle">9 · summarise  —  trim the result for the model</text>
+<text x="1380.0" y="1068.25" font-size="14" font-family="Menlo, monospace" fill="#1e1e1e" text-anchor="middle">10 · write_commentary  —  plain-English explanation</text>
+<text x="1380.0" y="1132.25" font-size="14" font-family="Menlo, monospace" fill="#1e1e1e" text-anchor="middle">11 · remember  —  keep question + SQL for follow-ups</text>
+<text x="1054" y="1184.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#c92a2a" text-anchor="start">↺  check_sql or run_sql fails → back to write_sql with the error (at most 2 retries)</text>
+<text x="2020.0" y="317.75" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">Application Insights</text>
+<text x="2020.0" y="335.25" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">OpenTelemetry: a span per request</text>
+<text x="2020.0" y="352.75" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">and per agent step</text>
+<text x="2020.0" y="483.0" font-size="16" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">Azure AI Content Safety</text>
+<text x="2020.0" y="503.0" font-size="16" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">Prompt Shields</text>
+<text x="2020.0" y="695.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">Azure OpenAI  (resource endpoint)</text>
+<text x="2020.0" y="712.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle"></text>
+<text x="2020.0" y="730.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">gpt-5.1: understand · SQL · commentary</text>
+<text x="2020.0" y="747.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">text-embedding-3-small: 1,536-dim vectors</text>
+<text x="1790.0" y="320.875" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#5c940d" text-anchor="middle">traces</text>
+<text x="1773.0" y="473.875" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#e8590c" text-anchor="middle">screen question</text>
+<text x="1792.0" y="665.875" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#6741d9" text-anchor="middle">steps 2 · 6 · 10</text>
+<text x="1820" y="847.0" font-size="16" font-family="Comic Sans MS, cursive" fill="#1e1e1e" text-anchor="start">Step colour = what it uses</text>
+<text x="1856" y="883.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="start">Azure OpenAI</text>
+<text x="2056" y="883.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="start">pgvector search</text>
+<text x="1856" y="921.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="start">Apache AGE graph</text>
+<text x="2056" y="921.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="start">PostgreSQL SQL</text>
+<text x="1856" y="959.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="start">Content Safety</text>
+<text x="2056" y="959.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="start">Python only</text>
+<text x="1856" y="997.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="start">Human approval</text>
+<text x="56" y="1330.0" font-size="20" font-family="Comic Sans MS, cursive" fill="#1971c2" text-anchor="start">③ Azure Database for PostgreSQL  ·  Flexible Server  ·  one server, two databases</text>
+<text x="56" y="1350.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">PostgreSQL 16 · Burstable B1ms · Central India · azure.extensions = VECTOR, AGE · shared_preload_libraries ⊃ age · sslmode=require</text>
+<text x="86" y="1417.0" font-size="17" font-family="Comic Sans MS, cursive" fill="#1971c2" text-anchor="start">mf_data  —  business data, read-only to the agent  ·  20 tables · 1,132,667 rows</text>
+<text x="213.5" y="1497.375" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">Fund house</text>
+<text x="213.5" y="1513.625" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle"></text>
+<text x="213.5" y="1529.875" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">schemes · scheme_plans</text>
+<text x="213.5" y="1546.125" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">scheme_categories</text>
+<text x="213.5" y="1562.375" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">benchmarks · benchmark_values</text>
+<text x="213.5" y="1578.625" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">nav_history</text>
+<text x="213.5" y="1594.875" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">scheme_aum_monthly</text>
+<text x="213.5" y="1611.125" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">fund_managers</text>
+<text x="213.5" y="1627.375" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">scheme_manager_assignments</text>
+<text x="464.5" y="1521.75" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">Market</text>
+<text x="464.5" y="1538.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle"></text>
+<text x="464.5" y="1554.25" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">sectors · issuer_groups</text>
+<text x="464.5" y="1570.5" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">issuers · securities</text>
+<text x="464.5" y="1586.75" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">credit_rating_history</text>
+<text x="464.5" y="1603.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">portfolio_holdings</text>
+<text x="715.5" y="1513.625" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">Investors</text>
+<text x="715.5" y="1529.875" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle"></text>
+<text x="715.5" y="1546.125" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">distributors · investors</text>
+<text x="715.5" y="1562.375" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">folios · sip_registrations</text>
+<text x="715.5" y="1578.625" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle"></text>
+<text x="715.5" y="1594.875" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">PII: name, email, mobile,</text>
+<text x="715.5" y="1611.125" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">PAN, DOB, bank (masked)</text>
+<text x="966.5" y="1521.75" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">Transactions</text>
+<text x="966.5" y="1538.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle"></text>
+<text x="966.5" y="1554.25" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">transactions</text>
+<text x="966.5" y="1570.5" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">683,159 rows</text>
+<text x="966.5" y="1586.75" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">60 monthly partitions</text>
+<text x="966.5" y="1603.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">(date filter required)</text>
+<text x="1166" y="1417.0" font-size="17" font-family="Comic Sans MS, cursive" fill="#6741d9" text-anchor="start">agent_meta  —  what the agent knows about mf_data</text>
+<text x="1298.5" y="1521.75" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">meta_tables</text>
+<text x="1298.5" y="1538.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">meta_columns</text>
+<text x="1298.5" y="1554.25" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle"></text>
+<text x="1298.5" y="1570.5" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">20 + 124 approved</text>
+<text x="1298.5" y="1586.75" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">descriptions</text>
+<text x="1298.5" y="1603.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">(PII flagged)</text>
+<text x="1559.5" y="1521.75" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">meta_edges</text>
+<text x="1559.5" y="1538.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle"></text>
+<text x="1559.5" y="1554.25" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">22 links</text>
+<text x="1559.5" y="1570.5" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">19 declared · 3 discovered</text>
+<text x="1559.5" y="1586.75" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">with evidence</text>
+<text x="1559.5" y="1603.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">and confidence</text>
+<text x="1820.5" y="1521.75" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">schema_graph</text>
+<text x="1820.5" y="1538.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">Apache AGE</text>
+<text x="1820.5" y="1554.25" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle"></text>
+<text x="1820.5" y="1570.5" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">20 :Table nodes</text>
+<text x="1820.5" y="1586.75" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">22 :JOINS edges</text>
+<text x="1820.5" y="1603.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">Cypher routes</text>
+<text x="2081.5" y="1521.75" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">meta_embeddings</text>
+<text x="2081.5" y="1538.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">pgvector · HNSW</text>
+<text x="2081.5" y="1554.25" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle"></text>
+<text x="2081.5" y="1570.5" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">1,415 vectors</text>
+<text x="2081.5" y="1586.75" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">20 table notes</text>
+<text x="2081.5" y="1603.0" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">1,395 values</text>
+<text x="100.0" y="1274.875" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1971c2" text-anchor="middle">load (COPY)</text>
+<text x="800.0" y="1286.875" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#6741d9" text-anchor="middle">publish: embeddings + graph</text>
+<text x="985.0" y="1252.875" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#1971c2" text-anchor="middle">read-only SQL</text>
+<text x="1747.0" y="1252.875" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#c92a2a" text-anchor="middle">Cypher route</text>
+<text x="2041.5" y="1249.875" font-size="13" font-family="Helvetica, Arial, sans-serif" fill="#0c8599" text-anchor="middle">vector search (steps 3–4)</text>
+</svg>

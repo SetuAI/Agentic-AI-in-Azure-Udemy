@@ -331,9 +331,10 @@ The Flexible Server tier lets us pick a small, cheap size (Burstable B1ms) for t
 **Why:** a system that turns text into SQL is an obvious target for prompt injection, and the language model is the weakest place to defend against it. Prompt Shields is a model trained specifically to detect these attacks. It runs **first**, before any of the project's own prompts see the question. It is a managed service, so it improves without code changes. The SQL checks and the read-only transaction remain behind it as further layers.
 
 ### Application Insights: seeing inside every answer
-**Why:** when an answer is slow or wrong, you need to know which step was responsible. The app sends **OpenTelemetry** traces to Application Insights. Every HTTP request is one transaction, and each agent step (`agent.understand`, `agent.find_join_path`, `agent.run_sql`…) appears as a timed span inside it. In the portal you can:
+**Why:** when an answer is slow or wrong, you need to know which step was responsible. The app sends **OpenTelemetry** traces to Application Insights. Every HTTP request is one transaction, and each agent step (`agent.understand`, `agent.find_join_path`, `agent.run_sql`…) appears as a timed span inside it. Every call out is recorded too: to Azure OpenAI, to Content Safety, and every **PostgreSQL query**, with its SQL text but never its values. In the portal you can:
 - open any question and see its timeline,
-- find the slowest steps,
+- see the **Application Map**: the app, with arrows to Azure OpenAI, Content Safety and PostgreSQL, each showing call counts, durations and failures,
+- find the slowest steps and the slowest database queries,
 - see errors with their stack traces, and
 - set alerts.
 
@@ -384,6 +385,9 @@ Real problems found while running the system against Azure, and how they were fi
 | The downgrade question was **refused**: "no ratings data" | Searching the whole question blurred its parts. The ratings table ranked only 5th, below the cut-off. | The understand step now lists each kind of data needed ("bond credit rating downgrades"), and each one is searched on its own. The ratings table is then found clearly first. |
 | The downgrade question then often returned **0 rows** | The model filtered ratings to March *before* comparing each with the previous rating, so the previous rating was gone and no downgrade could be found | A new approved metric, `rating_downgrades`, fixes the definition, including "compare first, then filter by date" |
 | The Postgres server could not be created in East US 2 (`SkuNotAvailable`) | Capacity restrictions on the subscription in that region | Created in **Central India** instead |
+| Application Map said **"No data available"** | Two Application Insights resources existed; AI Foundry had created one automatically, and the map was opened on that empty one | Open the resource whose connection string is in `.env` (`fundgraph-insights`) |
+| PostgreSQL was missing from Application Map | The Azure monitoring package only traces the older `psycopg2` library, and this project uses psycopg 3 | Added `opentelemetry-instrumentation-psycopg` and switched it on in `api/telemetry.py` |
+| The first deploy reported **504 Gateway Timeout** | The upload request gave up while App Service was still installing packages | Nothing to fix: the deployment had succeeded. Check with `az webapp log deployment list` |
 
 The general lesson: **the language model is good at writing SQL once it is given the right tables, the right joins and the right definitions.** Most failures came from what it was given, not from the model. That is why the retrieval, the graph and the approved metrics matter more than the prompt wording.
 

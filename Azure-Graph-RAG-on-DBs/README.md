@@ -195,7 +195,7 @@ graph LR
 | **Database for PostgreSQL** (Flexible Server) | Data, metadata, vectors and graph | **pgvector** and **Apache AGE** are allowed extensions, so one database replaces three (relational, vector and graph). It's managed, with nothing to keep in sync. |
 | **Azure OpenAI** | `gpt-5.1` reasons and writes SQL; `text-embedding-3-small` makes vectors | Runs in your own subscription under Azure's data terms. Models are swapped with a one-line config change. |
 | **AI Content Safety** | Prompt Shields screens every question | A model trained specifically to spot prompt attacks, run *before* any of our own prompts |
-| **Application Insights** | A timed trace of every request and agent step | Standard OpenTelemetry; shows which step is slow or failing |
+| **Application Insights** | A timed trace of every request, every agent step, and every call to OpenAI, Content Safety and PostgreSQL | Standard OpenTelemetry. **Application Map** draws the app and everything it calls, showing which step or query is slow or failing. |
 | **App Service** | Hosts the app | Runs Python straight from code, with HTTPS, health checks, logs and built-in sign-in |
 | **Entra ID** | Sign-in | The company's own accounts; also keeps each user's conversations separate |
 
@@ -520,12 +520,15 @@ Azure-Graph-RAG-on-DBs/
 ├── guardrails/                Prompt Shields + SQL checks (sqlglot)
 ├── adapters/postgres.py       Catalog reads, EXPLAIN, read-only execution
 ├── api/                       FastAPI: /query /schema-graph /table-counts /me /health
+│                                + telemetry.py (Application Insights, incl. PostgreSQL tracing)
 ├── ui/                        index.html (the demo page) · graph.html (full graph)
 ├── config/                    models · agent · metrics · generator · pii · …
 ├── tests/                     66 tests, stage by stage, against real Azure
 ├── evals/                     Demo questions + answer keys
 ├── infra/azure/               create-app-service.sh · deploy-app.sh
 ├── docs/azure/                Portal guide for every Azure service
+├── docs/architecture/         Excalidraw architecture diagram (+ PNG/SVG preview, generator)
+├── docs/images/               README screenshot
 ├── startup.sh                 App Service start command
 ├── commands.md                Every command, end to end
 ├── tables.md                  Every database and table explained
@@ -554,6 +557,8 @@ Azure-Graph-RAG-on-DBs/
 | The downgrade question was **refused** ("no ratings data") | Searching the whole question ranked the ratings table only 5th | Search each kind of data the question needs on its own |
 | The downgrade question then returned **0 rows** | The model filtered by date *before* comparing each rating with the previous one | The approved `rating_downgrades` metric: compare first, then filter |
 | The Postgres server couldn't be created in East US 2 (`SkuNotAvailable`) | Regional capacity limits | Used Central India |
+| Application Map said **"No data available"** | It was opened on a second, empty Application Insights resource that AI Foundry had created | Use the resource whose connection string is in `.env` |
+| PostgreSQL was missing from Application Map | The Azure package only traces `psycopg2`; this project uses psycopg 3 | Added `opentelemetry-instrumentation-psycopg` in `api/telemetry.py` |
 
 **The general lesson:** the model writes good SQL once it's given the right tables, joins and definitions. Most failures came from what it was given, not from the model itself.
 

@@ -56,11 +56,11 @@ Both live on one Azure Database for PostgreSQL Flexible Server.
 - Every database and table in plain language: what `mf_data` and `agent_meta` hold, the rows in each table, how the tables connect, the hidden links, the personal-data columns, and where each part shows up in the UI.
 
 ### `README.md`
-- Short description of the project.
-- The Azure setup steps and the run order above.
+- The project's front page: a screenshot of the UI, the architecture diagram, the problem and the idea (tables as nodes, joins as hops), the data, the pipeline end to end, a quickstart, demo questions with what to look for, the safety layers, how to deploy, the project layout, and links to every other document.
+- Uses Mermaid diagrams and click-to-expand sections, which GitHub draws on the repository page.
 
 ### `pyproject.toml`
-- Lists the Python packages the project needs (FastAPI, LangGraph, psycopg, sqlglot, polars, openai, and others).
+- Lists the Python packages the project needs (FastAPI, LangGraph, psycopg, sqlglot, polars, openai, the Azure Monitor OpenTelemetry package, the psycopg tracing package, and others).
 - Tells pytest where the tests are and lets every file import project folders (`agent`, `metadata`, ...) by name.
 - `uv sync` reads this file and installs everything.
 
@@ -106,6 +106,20 @@ Step-by-step portal guides, one per Azure service: what to click, what to select
 | `application-insights.md` | Application Insights monitoring |
 | `app-service.md` | Hosting the app on App Service |
 | `entra-id.md` | Entra ID sign-in in front of the app |
+
+### `docs/architecture/`
+The end-to-end architecture diagram.
+
+| File | What it is |
+|---|---|
+| `architecture.excalidraw` | The diagram, editable at excalidraw.com (☰ → Open) |
+| `architecture-preview.png`, `architecture-preview.svg` | Static images of it; the README shows the PNG |
+| `build_architecture.py` | Draws the diagram from code. After changing it, run `python3 docs/architecture/build_architecture.py docs/architecture/architecture.excalidraw docs/architecture/architecture-preview.svg`, then make a new PNG from the SVG. |
+
+The diagram has three parts: build time (the data plane and the metadata pipeline), run time (Entra ID, App Service, the 11 agent steps coloured by what each uses, Content Safety, Azure OpenAI, Application Insights), and the PostgreSQL server with `mf_data` and `agent_meta`.
+
+### `docs/images/`
+- `ui-answer.png`: a screenshot of the demo page answering the bond-downgrade question, shown at the top of the README.
 
 ### `scripts/pg_setup.py`
 Run once after creating the Azure server. Safe to run again.
@@ -408,8 +422,9 @@ Sign-in:
 - On a laptop there is no sign-in; every request counts as the user "local".
 
 ### `api/telemetry.py`
-- Turns on Azure Application Insights if `APPLICATIONINSIGHTS_CONNECTION_STRING` is set.
-- Records every HTTP request and every agent step span.
+- Turns on Azure Application Insights if `APPLICATIONINSIGHTS_CONNECTION_STRING` is set, labelling the app `fundgraph-api`.
+- Records every HTTP request, every agent step span, and every call out to Azure OpenAI and Content Safety.
+- Also switches on PostgreSQL tracing (`PsycopgInstrumentor`), so every database query is recorded with its duration, and PostgreSQL appears in Application Map. This is needed because the Azure package only traces the older `psycopg2` library. Only the SQL text is recorded, never the values sent with it.
 - Does nothing if the setting is empty.
 
 ### `ui/index.html`

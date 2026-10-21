@@ -572,6 +572,26 @@ az webapp config appsettings delete -g fundgraph-rg-1 -n fundgraph-app --setting
 az webapp ssh -g fundgraph-rg-1 -n fundgraph-app
 ```
 
+**Check monitoring data (Application Insights):**
+```bash
+az extension add --name application-insights      # once
+
+# Which Application Insights resources exist (AI Foundry may have created a second one)
+az resource list --resource-type microsoft.insights/components --query "[].{name:name, rg:resourceGroup}" -o table
+
+# The app id of the one the app sends to
+APPID=$(az resource show -g fundgraph-rg-1 -n fundgraph-insights \
+    --resource-type microsoft.insights/components --query properties.AppId -o tsv)
+
+# Requests in the last 24 hours (--offset sets how far back; the default is only 1 hour)
+az monitor app-insights query --apps $APPID --offset 24h --analytics-query "requests | summarize n=count() by name"
+
+# What the app calls: Azure OpenAI and Content Safety (HTTP), PostgreSQL (postgresql), agent steps (InProc)
+az monitor app-insights query --apps $APPID --offset 24h \
+    --analytics-query "dependencies | summarize calls=count(), avg_ms=avg(duration) by type, target | order by calls desc"
+```
+In the portal: **fundgraph-insights → Investigate → Application map** (set **Last 24 hours**, then **Refresh**).
+
 Keep the app at **one instance**, because conversation history is held in memory. Don't scale out.
 
 ---
@@ -622,6 +642,8 @@ Find your change in the left column, then run the steps on the right, in order.
 | Azure: every question returns `401` | Sign-in is off, or not set to "Require authentication" (`docs/azure/entra-id.md`) |
 | Azure: health check failing | `/health` must be excluded from sign-in: the `az webapp auth update ... --excluded-paths` command in 11.2 |
 | Azure: questions time out | The app's outbound IPs aren't in the Postgres firewall: the loop in 11.2 |
+| Application Map says "No data available" | Wrong resource: open the one whose connection string is in `.env` (the commands in Section 12 list them). Then set **Last 24 hours** and **Refresh**. |
+| No PostgreSQL node in Application Map | The app was started before tracing was added: `uv sync` and restart; on Azure, 11.3 again |
 
 ---
 
