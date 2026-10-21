@@ -1,0 +1,19 @@
+# =============================================================================
+# config/pii.yaml
+# =============================================================================
+#
+# Columns that hold personal data (PII) about a real person.
+#
+# The metadata pipeline treats every column listed here as off-limits:
+#   - its values are NEVER sent to the LLM when drafting notes
+#   - its values are NEVER embedded into pgvector
+#   - its values NEVER go into long-term memory (Stage 8)
+# The column's NAME and TYPE are still described, so the SQL-writing model
+# knows the column exists and can, for example, count rows with an email.
+#
+# On the client's database, their data protection team owns this list.
+# =============================================================================
+
+pii_columns:
+  investors: [pan, full_name, email, mobile, date_of_birth]
+  folios: [bank_account_masked]

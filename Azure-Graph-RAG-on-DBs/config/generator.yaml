@@ -1,0 +1,31 @@
+# =============================================================================
+# config/generator.yaml
+# =============================================================================
+#
+# Settings for the synthetic data generator (dataplane/generator/run.py).
+#
+# WHAT IS DELIBERATELY NOT IN THIS FILE
+# -------------------------------------
+# The 6 planted patterns (which scheme, which bond, which dates) live in
+# dataplane/generator/patterns.py, NOT here. The Stage 5 metadata pipeline
+# reads everything in config/. If the patterns were here, the pipeline could
+# read the answers instead of finding them in the data.
+# =============================================================================
+
+# The random seed. The generator uses random numbers everywhere (amounts,
+# dates, names). Starting from the same seed produces exactly the same
+# database every run, so a bug seen once can be reproduced.
+seed: 42
+
+# How big the investor side of the database is.
+#   1.0  -> 200,000 investors, 300,000 folios, ~4.6 million transactions
+#   0.2  -> 40,000 investors, 60,000 folios, ~0.8 million transactions
+# Only the investor tables grow with scale. Schemes, securities, NAVs and
+# holdings are the same size at every scale.
+# 0.2 is used for daily work and the demo: it generates and loads in minutes.
+scale: 0.2
+
+# The 5-year window the data covers. Must match the 60 monthly pieces of
+# the transactions table created in dataplane/schema/04_transactions.sql.
+start_date: "2021-09-01"
+end_date: "2026-08-31"

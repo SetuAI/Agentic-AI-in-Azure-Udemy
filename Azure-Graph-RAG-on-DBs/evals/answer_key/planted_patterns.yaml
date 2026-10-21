@@ -1,0 +1,82 @@
+# =============================================================================
+# evals/answer_key/planted_patterns.yaml
+# =============================================================================
+#
+# WHAT THIS FILE IS FOR
+# ---------------------
+# The 6 patterns deliberately planted in the synthetic data, written as the
+# correct answers to the demo and evaluation questions. In Stage 9, the
+# pipeline's answers are scored against these.
+#
+# Lives in evals/, never in config/, for the same reason as hidden_links.yaml:
+# the pipeline reads config/, and must not be able to read the answers.
+#
+# The exact numbers (rupee amounts, counts) depend on seed and scale, so
+# they are not written here. What is fixed: which scheme, which company,
+# which dates, and which direction the numbers move.
+# =============================================================================
+
+planted_patterns:
+
+  - id: 1
+    name: Redemption spike after a bond downgrade
+    demo_question: Why did net flows in Sahyadri Credit Risk Fund drop in March 2024?
+    facts:
+      bond_issuer: Vardhaman Housing Finance Ltd
+      rating_path: AA (2021-09-01) -> AA- (2023-05-15) -> BBB- (2024-03-12)
+      schemes_holding_it: [Sahyadri Credit Risk Fund, Sahyadri Medium Duration Fund]
+      effect: Net flows turn negative in March and April 2024; redemptions about 10x a normal month.
+      nav_effect: Credit Risk Fund NAV drops about 1.8% on 2024-03-12.
+    tables_needed: [schemes, scheme_plans, transactions, portfolio_holdings, securities, issuers, credit_rating_history]
+    correct_wording: The drop happened in the same month as the downgrade. The data shows timing, not cause.
+
+  - id: 2
+    name: High exposure to one business group
+    demo_question: Which scheme has the highest exposure to a single business group?
+    facts:
+      scheme: Sahyadri Mid Cap Fund
+      group: Trident Group
+      exposure: About 24% across 5 companies, each under 10% on its own.
+    tables_needed: [portfolio_holdings, securities, issuers, issuer_groups, schemes]
+
+  - id: 3
+    name: Performance change after a manager change
+    demo_question: Did Sahyadri Focused Fund perform differently after its manager changed?
+    facts:
+      scheme: Sahyadri Focused Fund
+      old_manager: Rajesh Kulkarni (until 2023-10-02)
+      new_manager: Meera Iyer (from 2023-10-03)
+      effect: Trails its benchmark before the change, beats it after.
+    tables_needed: [schemes, scheme_manager_assignments, fund_managers, nav_history, scheme_plans, benchmark_values]
+
+  - id: 4
+    name: SIP cancellations rising in one city tier
+    demo_question: Where are SIP cancellations rising?
+    facts:
+      city_tier: 3
+      from: 2025-09-01
+      effect: Tier-3 cancellations in the last 12 months are more than 3x the previous 12 months. Tiers 1 and 2 barely change.
+    tables_needed: [sip_registrations, folios, investors]
+
+  - id: 5
+    name: One distributor with a high rejection rate
+    demo_question: Which distributor has the highest transaction rejection rate?
+    facts:
+      distributor: Konkan Wealth Partners
+      arn: ARN-104417
+      effect: About 17% of its transactions rejected, against about 2% for others.
+    tables_needed: [transactions, distributors]
+    note: Joins transactions.arn_code to distributors.arn_no, which is hidden link 3.
+
+  - id: 6
+    name: One scheme above the 10% single-issuer limit
+    demo_question: Is any scheme above the 10% single-issuer limit?
+    facts:
+      scheme: Sahyadri Banking & Financial Services Fund
+      issuer: Malabar Commercial Bank Ltd
+      weight: 12.4% from 2026-03-31 (8.5% before)
+    tables_needed: [portfolio_holdings, securities, issuers, schemes]
+    note: >
+      Government issuers are exempt from the limit. Gilt and liquid funds hold
+      far more than 10% in the Government of India, and a correct answer
+      excludes them. Only Malabar Commercial Bank breaches the limit.

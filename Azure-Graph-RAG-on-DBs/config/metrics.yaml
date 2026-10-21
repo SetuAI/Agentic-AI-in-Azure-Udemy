@@ -1,0 +1,86 @@
+# =============================================================================
+# config/metrics.yaml
+# =============================================================================
+#
+# Approved definitions of business numbers (tradeoff 5). When a question asks
+# for one of these, the SQL-writing model is given this exact definition, so
+# "net flows" is calculated the same way every time, the way the business
+# defines it, instead of however the model guesses.
+#
+# The client's business team signs off this file (Stage 5 sign-off).
+# =============================================================================
+
+metrics:
+  net_flows:
+    description: Money into a scheme minus money out, from completed transactions.
+    definition: >
+      SUM(CASE WHEN txn_type IN ('Redemption', 'Switch Out') THEN -amount ELSE amount END)
+      over transactions WHERE txn_status = 'Completed'. Money in = Purchase, SIP, Switch In.
+      Money out = Redemption, Switch Out. Join transactions -> scheme_plans -> schemes to get the scheme.
+    tables: [transactions, scheme_plans, schemes]
+
+  redemptions:
+    description: Money taken out of a scheme by investors.
+    definition: >
+      Completed transactions with txn_type = 'Redemption'. Count rows for the number of
+      redemptions, SUM(amount) for the value.
+    tables: [transactions, scheme_plans, schemes]
+
+  aum:
+    description: Assets under management, the total money a scheme manages at a month end.
+    definition: >
+      Use scheme_aum_monthly.aum_amount at month_end_date. This is the approved route;
+      do not add up portfolio_holdings for AUM.
+    tables: [scheme_aum_monthly, schemes]
+
+  rejection_rate:
+    description: Share of transactions that were rejected.
+    definition: >
+      AVG(CASE WHEN txn_status = 'Rejected' THEN 1.0 ELSE 0 END) * 100 as a percentage.
+      By distributor: join transactions.arn_code = distributors.arn_no; only rows with an ARN
+      went through a distributor. Require a minimum number of transactions per group, e.g. 100.
+    tables: [transactions, distributors]
+
+  sip_cancellations:
+    description: SIPs that investors cancelled.
+    definition: >
+      sip_registrations with sip_status = 'Cancelled', dated by cancelled_date. To compare places,
+      join sip_registrations -> folios -> investors and group by investors.city_tier or city.
+    tables: [sip_registrations, folios, investors]
+
+  issuer_exposure:
+    description: Share of a scheme's portfolio in one issuer, for concentration and limit checks.
+    definition: >
+      SUM(portfolio_holdings.weight_pct) grouped by scheme and issuer at one as_of_date (a month end),
+      joining portfolio_holdings -> securities -> issuers. The 10% single-issuer limit does not apply
+      to government issuers: exclude issuers.issuer_type = 'Government' for limit checks.
+    tables: [portfolio_holdings, securities, issuers, schemes]
+
+  group_exposure:
+    description: Share of a scheme's portfolio in one business group.
+    definition: >
+      SUM(portfolio_holdings.weight_pct) grouped by scheme and issuer_groups.group_name at one as_of_date,
+      joining portfolio_holdings -> securities -> issuers -> issuer_groups.
+    tables: [portfolio_holdings, securities, issuers, issuer_groups, schemes]
+
+  fund_return:
+    description: How much a scheme's NAV grew over a period, compared with its benchmark.
+    definition: >
+      Use the Direct Growth plan (scheme_plans.plan_type = 'Direct' AND option_type = 'Growth').
+      Return = NAV at end date / NAV at start date - 1, from nav_history. Benchmark return the same way
+      from benchmark_values via schemes.benchmark_id. Use the nearest available date on or before each date.
+    tables: [nav_history, scheme_plans, schemes, benchmark_values]
+  rating_downgrades:
+    description: Bonds whose credit rating was cut, and the schemes that held them.
+    definition: >
+      A downgrade is a credit_rating_history row whose rtg is lower than the same security's previous
+      rating: LAG(rtg) OVER (PARTITION BY sec_cd ORDER BY rtg_dt). Rank ratings from best to worst:
+      AAA, AA+, AA, AA-, A+, A, A-, BBB+, BBB, BBB-, BB+, BB, BB-, B+, B, B-, C, D (e.g. with
+      array_position(ARRAY['AAA','AA+',...,'D'], rtg)); a higher position means worse. Date the
+      downgrade by rtg_dt. Compute the LAG over the full rating history first (no date filter in that
+      step), then filter rtg_dt to the period in an outer query: filtering first removes the previous
+      rating, so no downgrade is ever found. Join credit_rating_history.sec_cd = securities.security_code. Do not filter
+      on securities.security_type. A scheme held the bond if portfolio_holdings has that security_id
+      at the month end before the downgrade: as_of_date = (date_trunc('month', rtg_dt) - interval '1 day')::date,
+      joining portfolio_holdings.security_id = securities.security_id and portfolio_holdings.scheme_id = schemes.scheme_id.
+    tables: [credit_rating_history, securities, portfolio_holdings, schemes]

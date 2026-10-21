@@ -1,0 +1,45 @@
+# =============================================================================
+# config/metadata.yaml
+# =============================================================================
+#
+# Settings for the Stage 5 metadata pipeline (python -m metadata.build,
+# metadata.review, metadata.publish).
+#
+# Contains rules only. It must never contain answers about which links are
+# hidden or which patterns are planted: those live in evals/answer_key/.
+# =============================================================================
+
+link_discovery:
+  # A proposed link needs at least this share of the column's distinct values
+  # to exist in the column it points to. 0.95 allows a few dirty values.
+  min_overlap: 0.95
+  # Value matching is only tried on columns with at least this many distinct
+  # values. Small lists (e.g. 'Y'/'N', 'Active'/'Closed') match by
+  # coincidence too easily.
+  min_distinct_for_value_match: 10
+
+notes:
+  # How many example values to show the LLM per column (never for PII columns).
+  sample_values: 5
+  # How many tables to draft at the same time. Higher is faster, but may hit
+  # the deployment's tokens-per-minute limit.
+  parallel_calls: 4
+
+embedding:
+  # Text columns with fewer distinct values than this have their values
+  # embedded, so names in questions ("Sahyadri credit fund") can be matched
+  # to exact database values. Above this, the column is too varied to embed.
+  max_distinct_values: 10000
+  # Columns whose names match these patterns hold codes or identifiers, not
+  # names people type in questions. They are never embedded.
+  exclude_column_patterns: ["_code$", "_cd$", "^isin$", "_no$", "_number$", "_masked$", "_arn$"]
+  batch_size: 100
+
+graph:
+  # The AGE graph's name inside agent_meta.
+  name: schema_graph
+  # The longest route, in joins, the path finder will consider between two
+  # tables. 6 covers the longest route in this schema: transactions ->
+  # scheme_plans -> schemes -> portfolio_holdings -> securities ->
+  # credit_rating_history is 5 joins.
+  max_hops: 6

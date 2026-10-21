@@ -1,0 +1,50 @@
+# =============================================================================
+# evals/answer_key/hidden_links.yaml
+# =============================================================================
+#
+# WHAT THIS FILE IS FOR
+# ---------------------
+# Records the 3 links between tables that we deliberately did NOT declare in
+# the schema (no REFERENCES / foreign key). In Stage 5, the metadata pipeline
+# tries to discover links on its own. This file is the correct answer we
+# score it against.
+#
+# Gate 2 target: the pipeline must find at least 2 of these 3.
+#
+# WHY THIS FILE LIVES IN evals/, NEVER IN config/
+# -----------------------------------------------
+# The metadata pipeline reads config/. If this answer key were there, the
+# pipeline could "find" the links by reading them from this file, and its
+# score would prove nothing. Keeping it under evals/ means only the scoring
+# code ever reads it.
+#
+# FIELDS
+# ------
+#   from          -> table.column that holds the pointer
+#   to            -> table.column it points to
+#   findable_by   -> which discovery method should catch it in Stage 5:
+#                      same_name     -> the column names match exactly
+#                      value_overlap -> names differ; the stored values match
+#   note          -> anything the scorer or a human reviewer should know
+# =============================================================================
+
+hidden_links:
+
+  - from: scheme_aum_monthly.scheme_id
+    to: schemes.scheme_id
+    findable_by: same_name
+    note: Easiest of the three. Column name matches schemes' primary key exactly.
+
+  - from: credit_rating_history.sec_cd
+    to: securities.security_code
+    findable_by: value_overlap
+    note: >
+      Old-style column name. Points to security_code, NOT to security_id,
+      so a pipeline that only compares against primary keys will miss it.
+
+  - from: transactions.arn_code
+    to: distributors.arn_no
+    findable_by: value_overlap
+    note: >
+      NULL means a direct transaction with no distributor, so the overlap
+      check must ignore NULLs, or it will under-report the match.

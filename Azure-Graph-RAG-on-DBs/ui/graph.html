@@ -1,0 +1,267 @@
+<!doctype html>
+<!--
+  ui/graph.html
+  =============
+  A full-screen view of the schema graph: the 20 tables and every approved
+  link between them, as stored in agent_meta.
+
+  HOW TO USE IT
+    Click a table    -> it and every table joined to it light up; the side
+                        panel shows its description and each join column
+    Drag a table     -> move it, to untangle the picture
+    Hover a line     -> the exact join condition
+    Dashed lines     -> links the pipeline discovered itself (never declared)
+    "Hidden links"   -> show only those three
+    Click empty space or Esc -> clear the selection
+
+  WHERE THE DATA COMES FROM
+    GET /schema-graph, the same endpoint the demo page uses.
+
+  HOW THE LAYOUT IS WORKED OUT
+    A simple "force" layout: every pair of tables pushes apart, every link
+    pulls its two tables together, and a weak pull towards the centre stops
+    the picture drifting. Repeating that a few hundred times settles into a
+    picture where connected tables sit near each other.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FundGraph · Schema graph</title>
+<style>
+  :root { --ink: #14202e; --muted: #5b6b7d; --line: #dde3ea; --brand: #0b4f8a; --accent: #e8792b; --bg: #f4f6f9; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg);
+         color: var(--ink); display: grid; grid-template-rows: auto 1fr; }
+  header { background: linear-gradient(120deg, #0b2f52, #0b4f8a); color: #fff; padding: 14px 24px;
+           display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 18px; font-weight: 650; }
+  header .stats { opacity: .85; font-size: 13px; }
+  header .spacer { flex: 1; }
+  header button, header a { font: inherit; font-size: 13px; color: #fff; background: rgba(255,255,255,.14);
+                            border: 0; padding: 7px 12px; border-radius: 8px; cursor: pointer; text-decoration: none; }
+  header button.on { background: var(--accent); }
+  .wrap { display: grid; grid-template-columns: 1fr 360px; min-height: 0; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } }
+  svg { width: 100%; height: 100%; display: block; background: #fff; cursor: default; }
+  .node circle { stroke-width: 2; cursor: grab; }
+  .node text { font-size: 12px; fill: var(--ink); pointer-events: none; paint-order: stroke;
+               stroke: #fff; stroke-width: 4px; }
+  .dim { opacity: .15; }
+  aside { background: #fff; border-left: 1px solid var(--line); padding: 18px; overflow: auto; }
+  aside h2 { margin: 0 0 4px; font-size: 17px; }
+  aside .grain { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+  aside p { font-size: 13.5px; line-height: 1.5; }
+  aside h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin: 18px 0 8px; }
+  .join { font-family: ui-monospace, Menlo, monospace; font-size: 12px; padding: 8px 10px; border: 1px solid var(--line);
+          border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
+  .join:hover { background: var(--bg); }
+  .join .tag { font-family: -apple-system, sans-serif; font-size: 11px; float: right; color: var(--muted); }
+  .join.hidden-link { border-color: var(--accent); }
+  .join.hidden-link .tag { color: var(--accent); font-weight: 600; }
+  .legend { font-size: 12.5px; color: var(--muted); line-height: 1.8; }
+  .swatch { display: inline-block; width: 26px; vertical-align: middle; margin-right: 6px; border-top: 2px solid #9aabbd; }
+  .swatch.dash { border-top: 2px dashed var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Schema graph</h1>
+  <span class="stats" id="stats">Loading…</span>
+  <span class="spacer"></span>
+  <button id="hiddenBtn" title="Show only links the pipeline discovered">Hidden links only</button>
+  <button id="relayout">Re-arrange</button>
+  <a href="/">← Back to the demo</a>
+</header>
+
+<div class="wrap">
+  <svg id="svg"></svg>
+  <aside id="panel">
+    <h2>Click a table</h2>
+    <p>Every table joined to it lights up, and this panel lists how they join.</p>
+    <h3>Legend</h3>
+    <div class="legend">
+      <div><span class="swatch"></span>Declared foreign key</div>
+      <div><span class="swatch dash"></span>Hidden link, discovered by the pipeline</div>
+      <div>Circle size: number of links the table has</div>
+    </div>
+  </aside>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const svg = $("svg");
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+let data = { nodes: [], edges: [], tables: {} };
+let pos = {};             // table name -> {x, y}
+let selected = null;      // the clicked table, or null
+let hiddenOnly = false;   // "Hidden links only" switched on?
+
+// How many links each table has: used for circle size.
+const degree = name => data.edges.filter(e => e.from_table === name || e.to_table === name).length;
+
+// ---------------------------------------------------------------------------
+// Layout: a small force simulation (see the comment at the top of the file)
+// ---------------------------------------------------------------------------
+function layout() {
+  const W = svg.clientWidth, H = svg.clientHeight;
+  // Start from a circle with a little randomness, so each re-arrange differs.
+  data.nodes.forEach((n, i) => {
+    const a = (2 * Math.PI * i) / data.nodes.length;
+    pos[n] = { x: W / 2 + (W / 3) * Math.cos(a) + Math.random() * 20,
+               y: H / 2 + (H / 3) * Math.sin(a) + Math.random() * 20 };
+  });
+  for (let step = 0; step < 400; step++) {
+    const move = {};
+    data.nodes.forEach(n => (move[n] = { x: 0, y: 0 }));
+    // Every pair pushes apart; the closer they are, the harder.
+    for (const a of data.nodes) for (const b of data.nodes) {
+      if (a >= b) continue;
+      const dx = pos[a].x - pos[b].x, dy = pos[a].y - pos[b].y;
+      const d2 = Math.max(dx * dx + dy * dy, 100), f = 9000 / d2;
+      const d = Math.sqrt(d2);
+      move[a].x += (dx / d) * f; move[a].y += (dy / d) * f;
+      move[b].x -= (dx / d) * f; move[b].y -= (dy / d) * f;
+    }
+    // Every link pulls its two tables towards a comfortable distance.
+    for (const e of data.edges) {
+      const a = e.from_table, b = e.to_table;
+      const dx = pos[b].x - pos[a].x, dy = pos[b].y - pos[a].y;
+      const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1), f = (d - 130) * 0.04;
+      move[a].x += (dx / d) * f; move[a].y += (dy / d) * f;
+      move[b].x -= (dx / d) * f; move[b].y -= (dy / d) * f;
+    }
+    // A weak pull to the centre, and keep everything inside the picture.
+    const cool = 1 - step / 400;
+    for (const n of data.nodes) {
+      move[n].x += (W / 2 - pos[n].x) * 0.01; move[n].y += (H / 2 - pos[n].y) * 0.01;
+      pos[n].x = Math.min(W - 90, Math.max(90, pos[n].x + move[n].x * cool));
+      pos[n].y = Math.min(H - 40, Math.max(40, pos[n].y + move[n].y * cool));
+    }
+  }
+  draw();
+}
+
+// ---------------------------------------------------------------------------
+// Drawing
+// ---------------------------------------------------------------------------
+function neighbours(name) {
+  const set = new Set([name]);
+  data.edges.forEach(e => {
+    if (e.from_table === name) set.add(e.to_table);
+    if (e.to_table === name) set.add(e.from_table);
+  });
+  return set;
+}
+
+function draw() {
+  const near = selected ? neighbours(selected) : null;
+  const visibleEdges = data.edges.filter(e => !hiddenOnly || e.source !== "declared");
+  let out = "";
+
+  for (const e of visibleEdges) {
+    const a = pos[e.from_table], b = pos[e.to_table];
+    const touches = selected && (e.from_table === selected || e.to_table === selected);
+    const hidden = e.source !== "declared";
+    const colour = touches ? "#0b4f8a" : hidden ? "#e8792b" : "#b8c4d1";
+    const width = touches ? 3.5 : hidden ? 2.5 : 1.4;
+    out += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${colour}" stroke-width="${width}"
+              ${hidden ? 'stroke-dasharray="7 5"' : ""} class="${selected && !touches ? "dim" : ""}">
+              <title>${esc(e.from_table)}.${esc(e.from_column)} = ${esc(e.to_table)}.${esc(e.to_column)}  (${esc(e.source)})</title></line>`;
+  }
+
+  const shownNodes = hiddenOnly
+    ? new Set(visibleEdges.flatMap(e => [e.from_table, e.to_table])) : new Set(data.nodes);
+  for (const n of data.nodes) {
+    const p = pos[n], r = 7 + degree(n) * 1.6;
+    const isSel = n === selected, isNear = near && near.has(n);
+    const fill = isSel ? "#e8792b" : isNear ? "#0b4f8a" : "#ffffff";
+    const stroke = isSel ? "#e8792b" : isNear ? "#0b4f8a" : "#7f93a8";
+    const dim = (near && !isNear) || !shownNodes.has(n);
+    out += `<g class="node ${dim ? "dim" : ""}" data-name="${esc(n)}">
+              <circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${fill}" stroke="${stroke}"></circle>
+              <text x="${p.x}" y="${p.y - r - 6}" text-anchor="middle">${esc(n)}</text></g>`;
+  }
+  svg.innerHTML = out;
+}
+
+// ---------------------------------------------------------------------------
+// Side panel for the selected table
+// ---------------------------------------------------------------------------
+function showPanel(name) {
+  const t = data.tables[name] || {};
+  const joins = data.edges.filter(e => e.from_table === name || e.to_table === name);
+  const rows = t.rows != null ? Number(t.rows).toLocaleString("en-IN") + " rows (estimated)" : "";
+  $("panel").innerHTML = `
+    <h2>${esc(name)}</h2>
+    <div class="grain">${esc(t.grain || "")}${rows ? " · " + rows : ""}</div>
+    <p>${esc(t.description || "")}</p>
+    <h3>Joined to ${new Set(joins.map(e => e.from_table === name ? e.to_table : e.from_table)).size} table(s)</h3>
+    ${joins.map(e => {
+      const other = e.from_table === name ? e.to_table : e.from_table;
+      const hidden = e.source !== "declared";
+      const tag = hidden ? `discovered (${e.source.replace("_", " ")})` : "declared";
+      return `<div class="join ${hidden ? "hidden-link" : ""}" data-go="${esc(other)}">
+                <span class="tag">${tag}</span>${esc(e.from_table)}.${esc(e.from_column)}<br>= ${esc(e.to_table)}.${esc(e.to_column)}
+              </div>`;
+    }).join("")}
+    <p style="color:var(--muted);font-size:12px;margin-top:14px">Click a join to jump to the other table.</p>`;
+  // Clicking a join selects the table at its other end.
+  $("panel").querySelectorAll("[data-go]").forEach(el => el.onclick = () => select(el.dataset.go));
+}
+
+function select(name) {
+  selected = name;
+  draw();
+  if (name) showPanel(name);
+  else $("panel").innerHTML = "<h2>Click a table</h2><p>Every table joined to it lights up, and this panel lists how they join.</p>";
+}
+
+// ---------------------------------------------------------------------------
+// Mouse: click to select, drag to move
+// ---------------------------------------------------------------------------
+let dragging = null, moved = false;
+const point = ev => {
+  const r = svg.getBoundingClientRect();
+  return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+};
+svg.addEventListener("mousedown", ev => {
+  const g = ev.target.closest(".node");
+  dragging = g ? g.dataset.name : null;
+  moved = false;
+});
+svg.addEventListener("mousemove", ev => {
+  if (!dragging) return;
+  moved = true;
+  pos[dragging] = point(ev);
+  draw();
+});
+svg.addEventListener("mouseup", ev => {
+  const g = ev.target.closest(".node");
+  if (!moved) select(g ? g.dataset.name : null);   // a click, not a drag
+  dragging = null;
+});
+document.addEventListener("keydown", ev => { if (ev.key === "Escape") select(null); });
+
+$("hiddenBtn").onclick = () => {
+  hiddenOnly = !hiddenOnly;
+  $("hiddenBtn").classList.toggle("on", hiddenOnly);
+  draw();
+};
+$("relayout").onclick = layout;
+window.addEventListener("resize", layout);
+
+// ---------------------------------------------------------------------------
+// Load
+// ---------------------------------------------------------------------------
+fetch("/schema-graph").then(r => r.json()).then(g => {
+  data = { nodes: g.nodes, edges: g.edges, tables: g.tables || {} };
+  const hidden = g.edges.filter(e => e.source !== "declared").length;
+  $("stats").textContent = `${g.nodes.length} tables · ${g.edges.length} links · ${hidden} discovered by the pipeline`;
+  layout();
+});
+</script>
+</body>
+</html>

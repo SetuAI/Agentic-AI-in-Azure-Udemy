@@ -1,0 +1,53 @@
+# =============================================================================
+# config/agent.yaml
+# =============================================================================
+#
+# Settings for the Stage 6 agent (agent/graph.py). Rules and limits only:
+# nothing here names a planted pattern or a hidden link.
+# =============================================================================
+
+# How many times the agent may rewrite SQL after a failed check or a failed
+# run, before giving up. Tradeoff 10: max 2 retries.
+max_sql_retries: 2
+
+# Protecting the database (tradeoff 6).
+run:
+  timeout_ms: 15000        # cancel any query running longer than 15 seconds
+  row_cap: 5000            # never fetch more than this many rows back
+  max_plan_cost: 2000000   # refuse queries Postgres estimates above this cost
+
+# Tables whose queries MUST filter on a date column, because they are large
+# and split by month. Without a date filter, Postgres reads every month.
+date_filter_required:
+  transactions: txn_date
+
+# How many tables vector search suggests, before entity and metric tables are added.
+search_top_k: 4
+# Each kind of data the question needs (understand's data_needed) adds its best-matching
+# table, if it scores at least this. Below it, the phrase matched nothing in particular.
+phrase_min_score: 0.3
+
+# The model sees only this many result rows when writing commentary (tradeoff 7).
+summary_rows: 20
+
+# Names in a question are matched to exact database values. A match below
+# this similarity is ignored rather than risk using the wrong scheme.
+entity_min_score: 0.5
+
+# Which table and column each kind of name is looked up in.
+entity_columns:
+  scheme: [schemes, scheme_name]
+  issuer: [issuers, issuer_name]
+  group: [issuer_groups, group_name]
+  sector: [sectors, sector_name]
+  distributor: [distributors, dist_nm]
+  manager: [fund_managers, manager_name]
+  category: [scheme_categories, category_name]
+  city: [investors, city]
+  benchmark: [benchmarks, benchmark_name]
+
+prompt_shields:
+  # true: if Content Safety cannot be reached, let the question through and
+  # record that the check was skipped. Keeps a demo running through a
+  # network blip. MUST be false in production: fail closed.
+  fail_open: true

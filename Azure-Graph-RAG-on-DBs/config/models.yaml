@@ -1,0 +1,26 @@
+# =============================================================================
+# config/models.yaml
+# =============================================================================
+#
+# Which Azure OpenAI deployment plays each role. Code never names a model
+# directly: it asks for a role ("small", "strong", "embedding") and reads the
+# deployment name from here. Swapping a model is then a one-line change.
+#
+#   small     -> quick, cheap jobs: understanding the question, routing
+#   strong    -> jobs where quality matters: table notes, SQL, commentary
+#   embedding -> turning text into 1,536 numbers for pgvector
+#
+# "small" points at gpt-5.1 for now, because East US had no regional quota for
+# gpt-4.1-mini. When that quota arrives, change "small" to its deployment name.
+# =============================================================================
+
+chat:
+  small: gpt-5.1
+  strong: gpt-5.1
+
+embedding: text-embedding-3-small
+
+# How much the reasoning models "think" before answering. "low" is faster and
+# cheaper, and is enough for writing table notes. Raise to "medium" for SQL
+# if accuracy needs it.
+reasoning_effort: low
