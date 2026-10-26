@@ -31,10 +31,15 @@ import psycopg
 
 # Every table appears after all the tables it points to.
 LOAD_ORDER = [
+    # Fund-house tables (file 01) ...
     "scheme_categories", "benchmarks", "benchmark_values", "schemes", "scheme_plans",
+    # ... continued ...
     "fund_managers", "scheme_manager_assignments", "nav_history",
+    # Market tables (file 02, except holdings) ...
     "sectors", "issuer_groups", "issuers", "securities", "credit_rating_history",
+    # Investor tables (file 03) ...
     "distributors", "investors", "folios", "sip_registrations",
+    # ... then transactions and the two summary tables, which point to the tables above.
     "transactions", "scheme_aum_monthly", "portfolio_holdings",
 ]
 

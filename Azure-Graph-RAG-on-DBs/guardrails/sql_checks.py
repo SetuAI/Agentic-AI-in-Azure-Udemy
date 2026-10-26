@@ -27,9 +27,11 @@ from sqlglot import exp
 
 # Anything in this list anywhere in the query means it would change something.
 WRITE_NODES = (exp.Insert, exp.Update, exp.Delete, exp.Drop, exp.Create, exp.Alter,
+               # (TRUNCATE, MERGE, raw commands and GRANT too)
                exp.TruncateTable, exp.Merge, exp.Command, exp.Grant)
 
 
+# Called by the agent's check_sql step with the SQL, the known tables and the date rules.
 def check(sql: str, known_tables: set[str], date_filter_required: dict[str, str]) -> list[dict]:
     """
     Returns one entry per check: {"check": name, "passed": bool, "detail": text}.
@@ -52,10 +54,13 @@ def check(sql: str, known_tables: set[str], date_filter_required: dict[str, str]
         statements = [s for s in sqlglot.parse(sql, read="postgres") if s is not None]
     # The SQL could not be read: record the failure and stop.
     except sqlglot.errors.ParseError as error:
+        # Record the failure with the parser's message ...
         record("parses", False, f"Not valid SQL: {error}")
+        # ... and stop: nothing else can be checked.
         return results
     # Exactly one statement allowed; otherwise stop.
     if not record("single_statement", len(statements) == 1, f"{len(statements)} statement(s)"):
+        # Stop: further checks only make sense for a single statement.
         return results
     # The one statement's tree.
     tree = statements[0]
@@ -68,6 +73,7 @@ def check(sql: str, known_tables: set[str], date_filter_required: dict[str, str]
     writes = [type(n).__name__ for n in tree.walk() if isinstance(n, WRITE_NODES)]
     # Pass only if it is a query AND nothing inside writes.
     record("read_only", is_query and not writes,
+           # The detail: "SELECT only", or what was not allowed.
            "SELECT only" if is_query and not writes else f"Not allowed: {writes or type(tree).__name__}")
 
     # 3. Known tables only. Names defined in WITH (CTEs) are the query's own
@@ -80,6 +86,7 @@ def check(sql: str, known_tables: set[str], date_filter_required: dict[str, str]
     unknown = sorted(used - known_tables)
     # Pass only if there are no unknown tables.
     record("known_tables", not unknown, f"Tables: {', '.join(sorted(used))}" if not unknown
+           # ... or the unknown tables.
            else f"Unknown tables: {', '.join(unknown)}")
 
     # 4. Date filter on big partitioned tables. Some WHERE clause must COMPARE
@@ -94,16 +101,20 @@ def check(sql: str, known_tables: set[str], date_filter_required: dict[str, str]
         if table in used:
             # True if any comparison inside any WHERE mentions the date column.
             filtered = any(
+                # Does this comparison mention the date column?
                 any(col.name == date_column for col in cmp.find_all(exp.Column))
+                # Checked for every comparison inside every WHERE clause.
                 for where in tree.find_all(exp.Where) for cmp in where.find_all(*comparisons)
             )
             # Record the result with a helpful message.
             record("date_filter", filtered, f"{table} filtered by a range on {date_column}" if filtered
+                   # ... or explain what is missing.
                    else f"{table} must be filtered by a date range on {date_column} (e.g. >= and <)")
     # All check results.
     return results
 
 
+# Used to show which tables the final SQL really reads.
 def tables_in(sql: str) -> list[str]:
     """The real tables a query reads (not its WITH names). Empty if it does not parse."""
     # A query that cannot be parsed reads no known tables.
@@ -112,6 +123,7 @@ def tables_in(sql: str) -> list[str]:
         tree = sqlglot.parse_one(sql, read="postgres")
     # Not valid SQL.
     except sqlglot.errors.ParseError:
+        # No tables.
         return []
     # WITH names, left out as above.
     cte_names = {cte.alias_or_name for cte in tree.find_all(exp.CTE)}

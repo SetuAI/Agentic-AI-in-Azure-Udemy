@@ -42,6 +42,7 @@ def setup() -> bool:
     load_dotenv()
     # No connection string (empty or missing): skip monitoring.
     if not os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING"):
+        # Say so in the server log.
         print("Application Insights: not configured, skipping")
         # Nothing was set up.
         return False
@@ -55,6 +56,7 @@ def setup() -> bool:
     from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
     # From now on every psycopg query is recorded as a dependency.
     PsycopgInstrumentor().instrument()
+    # Confirm in the server log.
     print("Application Insights: sending traces")
     # Monitoring is on.
     return True

@@ -52,18 +52,23 @@ def agent_config() -> dict:
     return yaml.safe_load((CONFIG / "agent.yaml").read_text())
 
 
+# Read once, then reuse.
 @lru_cache(maxsize=1)
+# The approved business metric definitions: name -> {description, definition, tables}.
 def metrics() -> dict:
     # Read config/metrics.yaml and return just the "metrics" section.
     return yaml.safe_load((CONFIG / "metrics.yaml").read_text())["metrics"]
 
 
+# Create once, then reuse.
 @lru_cache(maxsize=1)
+# The read-only gateway to the fund database (mf_data).
 def adapter() -> PostgresAdapter:
     # One adapter for the fund database, shared by every question.
     return PostgresAdapter(os.environ["DATA_DB_URL"])
 
 
+# Opens a NEW connection every time it is called (not cached on purpose).
 def agent_conn():
     """
     A new connection to agent_meta. Each step opens its own and closes it
@@ -74,7 +79,9 @@ def agent_conn():
     return store.connect(os.environ["AGENT_DB_URL"])
 
 
+# Load once, then reuse (restart the server to pick up new notes).
 @lru_cache(maxsize=1)
+# The approved notes for every table, used to write SQL.
 def table_notes() -> dict[str, dict]:
     """
     table name -> {"description", "grain", "columns": [(name, type, description, is_pii), ...]}
@@ -86,10 +93,12 @@ def table_notes() -> dict[str, dict]:
     with agent_conn() as conn:
         # Loop over every APPROVED table note (grain = what one row represents).
         for name, description, grain in conn.execute(
+            # SQL: name, description and grain of every APPROVED table.
             "SELECT table_name, description, grain FROM meta_tables WHERE status = 'approved'"
         ).fetchall():
             # That table's column notes, sorted by column name.
             columns = conn.execute(
+                # SQL: that table's column notes; %s is filled with the table name.
                 """SELECT column_name, data_type, description, is_pii FROM meta_columns
                    WHERE table_name = %s ORDER BY column_name""", (name,)).fetchall()
             # Store this table's notes.

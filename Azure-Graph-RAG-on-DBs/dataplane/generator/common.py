@@ -91,6 +91,7 @@ def load_settings() -> Settings:
         scale=float(config["scale"]),
         # "datetime64[D]" is numpy's date type, precise to one day.
         start=np.datetime64(config["start_date"], "D"),
+        # The last day of the window, as a numpy date.
         end=np.datetime64(config["end_date"], "D"),
     )
 
@@ -112,6 +113,7 @@ def business_days(start: np.datetime64, end: np.datetime64) -> np.ndarray:
     return all_days[np.is_busday(all_days)]
 
 
+# Helper: weekend dates -> the next Monday.
 def roll_forward(dates: np.ndarray) -> np.ndarray:
     """
     Move any Saturday or Sunday forward to the following Monday.
@@ -122,6 +124,7 @@ def roll_forward(dates: np.ndarray) -> np.ndarray:
     return np.busday_offset(dates.astype("datetime64[D]"), 0, roll="forward")
 
 
+# Helper: the list of month-end dates in a window.
 def month_ends(start: np.datetime64, end: np.datetime64) -> np.ndarray:
     """
     The last calendar day of every month in the window,
@@ -132,13 +135,16 @@ def month_ends(start: np.datetime64, end: np.datetime64) -> np.ndarray:
     """
     # Every month in the window, e.g. 2021-09, 2021-10, ..., 2026-08.
     months = np.arange(
+        # From the start month ...
         start.astype("datetime64[M]"),
+        # ... up to and including the end month (arange stops before its end, hence + 1 month).
         end.astype("datetime64[M]") + np.timedelta64(1, "M"),
     )
     # Next month's first day minus one day = this month's last day.
     return (months + np.timedelta64(1, "M")).astype("datetime64[D]") - np.timedelta64(1, "D")
 
 
+# Helper: numpy dates -> Python dates (None stays None).
 def to_dates(values) -> list:
     """
     Turn a list of numpy dates (some may be None or "NaT", meaning no date)
@@ -164,6 +170,7 @@ def to_dates(values) -> list:
     return out
 
 
+# Helper: random business days within given ranges.
 def random_dates(settings: Settings, low: np.ndarray, high: np.ndarray) -> np.ndarray:
     """
     One random business day between low and high for each position.
@@ -175,6 +182,7 @@ def random_dates(settings: Settings, low: np.ndarray, high: np.ndarray) -> np.nd
     """
     # Make sure both arrays hold whole-day dates.
     low = low.astype("datetime64[D]")
+    # (same for the high dates)
     high = high.astype("datetime64[D]")
     # How many days lie between low and high, for every position.
     span = (high - low).astype(int)
@@ -202,20 +210,31 @@ def random_dates(settings: Settings, low: np.ndarray, high: np.ndarray) -> np.nd
 
 # First names used to build fictitious investor names.
 FIRST_NAMES = [
+    # First names A (Aarav ... Arjun)
     "Aarav", "Aditi", "Aditya", "Akash", "Amit", "Ananya", "Anil", "Anjali", "Arjun",
+    # First names A-K (Asha ... Kavita)
     "Asha", "Deepak", "Divya", "Gaurav", "Geeta", "Harish", "Isha", "Karan", "Kavita",
+    # First names K-P (Kiran ... Pradeep)
     "Kiran", "Lakshmi", "Manish", "Meera", "Mohan", "Neha", "Nikhil", "Pooja", "Pradeep",
+    # First names P-S (Priya ... Sarita)
     "Priya", "Rahul", "Rajesh", "Ramesh", "Ravi", "Rohan", "Sachin", "Sanjay", "Sarita",
+    # First names S-V (Shreya ... Vikram)
     "Shreya", "Sneha", "Sunil", "Suresh", "Swati", "Tanvi", "Uday", "Varun", "Vikram",
+    # First names V-Z, plus names from other communities (Farhan ... Gurpreet)
     "Vinod", "Yash", "Zoya", "Farhan", "Imran", "Joseph", "Mary", "Harpreet", "Gurpreet",
 ]
 
 # Surnames used to build fictitious investor and manager names.
 SURNAMES = [
+    # Surnames from north and west India, and the south (Iyer, Nair, Menon)
     "Sharma", "Verma", "Patil", "Deshmukh", "Kulkarni", "Joshi", "Iyer", "Nair", "Menon",
+    # Surnames from the south and west
     "Reddy", "Rao", "Naidu", "Gupta", "Agarwal", "Mehta", "Shah", "Desai", "Patel",
+    # Surnames from the east and north
     "Chatterjee", "Banerjee", "Das", "Mukherjee", "Singh", "Kaur", "Gill", "Khan",
+    # Surnames from various communities and the coast
     "Qureshi", "Fernandes", "D'Souza", "Pillai", "Kamath", "Shetty", "Bhat", "Pandey",
+    # Surnames from the north and Maharashtra
     "Mishra", "Tiwari", "Yadav", "Chauhan", "Rathod", "Jadhav", "More", "Pawar",
 ]
 
@@ -223,21 +242,37 @@ SURNAMES = [
 # Tier 1 = large metro, 2 = mid-size city, 3 = smaller town.
 # Each entry is one tuple: (city, state, state code, tier).
 CITIES = [
+    # Tier 1 (large metros): Mumbai, Delhi
     ("Mumbai", "Maharashtra", "MH", 1), ("Delhi", "Delhi", "DL", 1),
+    # Tier 1: Bengaluru, Chennai
     ("Bengaluru", "Karnataka", "KA", 1), ("Chennai", "Tamil Nadu", "TN", 1),
+    # Tier 1: Kolkata, Hyderabad
     ("Kolkata", "West Bengal", "WB", 1), ("Hyderabad", "Telangana", "TG", 1),
+    # Tier 1: Pune, Ahmedabad
     ("Pune", "Maharashtra", "MH", 1), ("Ahmedabad", "Gujarat", "GJ", 1),
+    # Tier 2 (mid-size cities): Jaipur, Lucknow
     ("Jaipur", "Rajasthan", "RJ", 2), ("Lucknow", "Uttar Pradesh", "UP", 2),
+    # Tier 2: Nagpur, Indore
     ("Nagpur", "Maharashtra", "MH", 2), ("Indore", "Madhya Pradesh", "MP", 2),
+    # Tier 2: Surat, Kochi
     ("Surat", "Gujarat", "GJ", 2), ("Kochi", "Kerala", "KL", 2),
+    # Tier 2: Coimbatore, Bhopal
     ("Coimbatore", "Tamil Nadu", "TN", 2), ("Bhopal", "Madhya Pradesh", "MP", 2),
+    # Tier 2: Vadodara, Chandigarh
     ("Vadodara", "Gujarat", "GJ", 2), ("Chandigarh", "Chandigarh", "CH", 2),
+    # Tier 2: Nashik, Visakhapatnam
     ("Nashik", "Maharashtra", "MH", 2), ("Visakhapatnam", "Andhra Pradesh", "AP", 2),
+    # Tier 3 (smaller towns): Kolhapur, Satara
     ("Kolhapur", "Maharashtra", "MH", 3), ("Satara", "Maharashtra", "MH", 3),
+    # Tier 3: Belagavi, Hubballi
     ("Belagavi", "Karnataka", "KA", 3), ("Hubballi", "Karnataka", "KA", 3),
+    # Tier 3: Jalgaon, Latur
     ("Jalgaon", "Maharashtra", "MH", 3), ("Latur", "Maharashtra", "MH", 3),
+    # Tier 3: Mysuru, Udaipur
     ("Mysuru", "Karnataka", "KA", 3), ("Udaipur", "Rajasthan", "RJ", 3),
+    # Tier 3: Guntur, Raipur
     ("Guntur", "Andhra Pradesh", "AP", 3), ("Raipur", "Chhattisgarh", "CG", 3),
+    # Tier 3: Dehradun, Siliguri
     ("Dehradun", "Uttarakhand", "UK", 3), ("Siliguri", "West Bengal", "WB", 3),
 ]
 
@@ -247,20 +282,32 @@ TIER_SHARE = {1: 0.50, 2: 0.30, 3: 0.20}
 # Words used to build invented company and group names.
 # First words of invented names, e.g. "Kaveri" in "Kaveri Power".
 NAME_WORDS = [
+    # Words from Indian history and rivers
     "Ashoka", "Trident", "Vardhaman", "Kaveri", "Narmada", "Godavari", "Himgiri", "Vindhya",
+    # Mountain ranges and regions
     "Satpura", "Aravalli", "Konark", "Pratap", "Shivalik", "Nilgiri", "Malabar", "Coromandel",
+    # Regions and rivers
     "Konkan", "Sindhu", "Yamuna", "Saraswati", "Chambal", "Tapti", "Mahanadi", "Tungabhadra",
+    # Rivers and business-style words
     "Sabarmati", "Teesta", "Orion", "Pinnacle", "Sterling", "Apex", "Zenith", "Horizon",
+    # Business-style and Sanskrit words
     "Summit", "Crest", "Meridian", "Pioneer", "Suryoday", "Chandra", "Arunodaya", "Vasundhara",
+    # Sanskrit words and symbols
     "Prakriti", "Nakshatra", "Samudra", "Parvat", "Ganesha", "Lotus", "Banyan", "Peacock",
+    # Animals and objects
     "Tiger", "Falcon", "Eagle", "Anchor", "Beacon", "Compass", "Harbour", "Keystone",
+    # Objects and Sanskrit words
     "Lighthouse", "Monarch", "Navratna", "Omkar", "Rudra", "Shakti", "Tejas", "Utkarsh",
+    # More Sanskrit words
     "Vikas", "Yashoda", "Amrit", "Bharati", "Dhruva", "Gagan", "Indra", "Jyoti",
 ]
 
 # Second words of invented company names, e.g. "Power" in "Kaveri Power".
 SECOND_WORDS = [
+    # Generic company-type words
     "Industries", "Enterprises", "Holdings", "Technologies", "Infra", "Power", "Chemicals",
+    # Industry words
     "Steel", "Textiles", "Motors", "Foods", "Pharma", "Energy", "Cement", "Logistics",
+    # More industry words
     "Realty", "Telecom", "Systems", "Polymers", "Agro", "Electricals", "Engineering",
 ]

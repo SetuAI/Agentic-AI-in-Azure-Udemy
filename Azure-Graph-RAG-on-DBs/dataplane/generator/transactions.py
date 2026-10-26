@@ -56,6 +56,7 @@ REJECT_REASONS_IN = ["Insufficient funds in bank account", "Mandate not register
 REJECT_REASONS_OUT = ["Signature mismatch", "KYC not compliant", "Bank account mismatch"]
 
 
+# Helper: random amounts for one-off purchases.
 def _lumpsum_amounts(rng, scheme_ids: np.ndarray) -> np.ndarray:
     """
     Random one-off investment amounts, in rupees.
@@ -85,7 +86,9 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
 
     # Take the folio columns out as numpy arrays (all in the same folio order).
     folio_ids = folio_facts["folio_id"].to_numpy()
+    # The date each folio was opened.
     opened = folio_facts["opened_date"].to_numpy().astype("datetime64[D]")
+    # The scheme each folio invests in.
     scheme_of_folio = folio_facts["scheme_id"].to_numpy()
     # How many folios there are.
     n_folio = len(folio_ids)
@@ -99,8 +102,11 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
     # step_months months, on the SIP day, until last_pay.
     # The SIP schedule's columns as numpy arrays (one entry per SIP).
     first_pay = sip_schedule["first_pay"].to_numpy().astype("datetime64[D]")
+    # The last allowed payment date of each SIP.
     last_pay = sip_schedule["last_pay"].to_numpy().astype("datetime64[D]")
+    # Months between payments (1 or 3).
     step = sip_schedule["step_months"].to_numpy()
+    # The day of the month each SIP pays on.
     sip_day = sip_schedule["sip_day"].to_numpy()
 
     # How many payments each SIP can make: whole steps between the months, plus one.
@@ -228,6 +234,7 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
     # Fraction of current holdings taken out: 30% of redemptions take
     # everything; the rest take 10% to 60%. Switch-outs take 20% to 80%.
     frac_r = np.where(rng.random(len(who_r)) < 0.30, 1.0, rng.uniform(0.10, 0.60, len(who_r)))
+    # Switch-outs take 20% to 80%.
     frac_s = rng.uniform(0.20, 0.80, len(who_s))
 
     # Two tables of planned withdrawals; "frac" is the share of holdings to take.

@@ -42,7 +42,9 @@ from dotenv import load_dotenv
 MODELS_FILE = Path(__file__).resolve().parents[1] / "config" / "models.yaml"
 
 
+# Read once, then reuse.
 @lru_cache(maxsize=1)
+# The contents of config/models.yaml.
 def _settings() -> dict:
     """Read config/models.yaml once, then reuse it. lru_cache remembers the result."""
     # Open the file (closed automatically afterwards) ...
@@ -51,7 +53,9 @@ def _settings() -> dict:
         return yaml.safe_load(f)
 
 
+# Create once, then reuse.
 @lru_cache(maxsize=1)
+# The client used for every chat and embedding call.
 def _client() -> openai.OpenAI:
     """Create the connection to Azure OpenAI once, then reuse it."""
     # Make sure .env has been read.
@@ -59,7 +63,9 @@ def _client() -> openai.OpenAI:
     # Azure OpenAI's "v1" endpoint accepts the standard OpenAI client:
     # base_url = your endpoint + "/openai/v1/", api_key = your Azure key.
     client = openai.OpenAI(
+        # Your endpoint + "/openai/v1/".
         base_url=os.environ["AZURE_OPENAI_ENDPOINT"].rstrip("/") + "/openai/v1/",
+        # Your Azure OpenAI key.
         api_key=os.environ["AZURE_OPENAI_API_KEY"],
         # If Azure answers "too many requests" (our tokens-per-minute limit),
         # the client waits and tries again, up to 6 times, instead of failing.
@@ -78,11 +84,13 @@ def _client() -> openai.OpenAI:
             client = wrap_openai(client)
         # Wrapping failed: print why and use the plain client.
         except Exception as error:
+            # Say why, in the log.
             print(f"LangSmith wrapping skipped: {error}")
     # The (possibly wrapped) client, cached for every later call.
     return client
 
 
+# role = "small" or "strong"; system = instructions; user = the message.
 def chat_json(role: str, system: str, user: str) -> dict:
     """
     Ask a chat model a question and get its answer as a Python dict.
@@ -95,12 +103,16 @@ def chat_json(role: str, system: str, user: str) -> dict:
     settings = _settings()
     # The request: which deployment (from the role), the two messages, and "reply in JSON".
     request = {
+        # The deployment name for this role, from models.yaml.
         "model": settings["chat"][role],
+        # The instructions (system) and the message (user).
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        # Reply with JSON only.
         "response_format": {"type": "json_object"},
     }
     # e.g. "low" (None if not set in models.yaml).
     effort = settings.get("reasoning_effort")
+    # Try the request; if Azure rejects it, the "except" below handles it.
     try:
         # Send the request ("**request" spreads the dict into named arguments), adding
         # reasoning_effort only if one is set. The "\" continues the line onto the next.
@@ -127,6 +139,7 @@ def chat_json(role: str, system: str, user: str) -> dict:
     return json.loads(text)
 
 
+# Used by publish.py (to store vectors) and retrieval.py (to search).
 def embed(texts: list[str]) -> list[list[float]]:
     """
     Turn each text into its embedding (1,536 numbers).

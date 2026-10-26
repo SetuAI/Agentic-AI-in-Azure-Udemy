@@ -41,12 +41,16 @@ def guard_input(state: dict) -> dict:
     fresh = {
         # Per-turn fields start empty for every new question.
         "status": None, "block_reason": None, "understanding": None, "entities": [],
+        # Empty results from the matching, search, join and SQL steps ...
         "unmatched": [], "tables": [], "table_picks": [], "join_path": None, "sql": None, "sql_tables": [], "sql_explanation": None,
+        # ... no checks yet, 0 attempts, no error, no result ...
         "checks": [], "attempts": 0, "failed_sql": [], "error": None, "result": None, "summary": None,
+        # ... no answer yet; and this step's own Prompt Shields result.
         "commentary": None, "prompt_shield": result, "_detail": result["note"],
     }
     # An attack was detected: mark the question as blocked.
     if result["attack"]:
+        # Set status and the message shown to the user.
         fresh.update(status="blocked", block_reason="Prompt Shields flagged this question as a prompt attack. No SQL was written.")
     # LangGraph merges these values into the state.
     return fresh
@@ -93,11 +97,15 @@ def understand(state: dict) -> dict:
     history = state.get("history") or []
     # For a follow-up, include the last question and its SQL ([-1] = the last item).
     previous = (f"Previous question: {history[-1]['question']}\nPrevious SQL:\n{history[-1]['sql']}\n\n"
+                # ... or nothing for a first question.
                 if history else "")
     # Call the small model; it replies with JSON, returned as a Python dict.
     answer = llm.chat_json(
+        # Use the small (cheap, fast) model ...
         "small",
+        # ... with the instructions, the data window filled in ...
         UNDERSTAND_PROMPT.replace("{start}", DATA_START).replace("{end}", DATA_END),
+        # ... and the message: metric list, previous turn (if any) and the question.
         f"Approved metrics:\n{metric_list}\n\n{previous}Question: {state['question']}",
     )
     # Keep only metric names that really exist in metrics.yaml.
@@ -113,15 +121,23 @@ def understand(state: dict) -> dict:
     # one ever slips through.
     # "question", "data_change" or "off_topic" (default "question").
     kind = answer.get("request_type", "question")
+    # A request to change data: refuse.
     if kind == "data_change":
+        # Mark as blocked with an explanation.
         update.update(status="blocked", _detail="Request to change data",
+                      # The message shown to the user ...
                       block_reason="This assistant only reads data. Requests to delete, update or create "
+                                   # ... (continued).
                                    "data are refused, and no SQL was written.")
+    # Not about the fund data: refuse.
     elif kind == "off_topic":
+        # Mark as blocked with an explanation.
         update.update(status="blocked", _detail="Not about this data",
+                      # The message shown to the user.
                       block_reason="This question is not about the fund database, so it was not answered.")
     # The question cannot be answered as written: ask back (graph.py then stops).
     elif answer.get("needs_clarification"):
+        # The clarification question itself is in answer["clarification_question"].
         update.update(status="needs_clarification")
     # Return the changes for LangGraph to merge.
     return update
@@ -142,7 +158,9 @@ def match_entities(state: dict) -> dict:
         for entity in state["understanding"].get("entities", []):
             # An unknown kind cannot be looked up: record it as unmatched and move on.
             if entity.get("kind") not in lookups:
+                # Record it as not found ...
                 unmatched.append(entity)
+                # ... and move to the next name.
                 continue
             # Where names of this kind live.
             table, column = lookups[entity["kind"]]
@@ -150,10 +168,13 @@ def match_entities(state: dict) -> dict:
             best = retrieval.match_values(conn, entity["text"], k=1, table=table, column=column)
             # Accept it only if the similarity score is high enough.
             if best and best[0][3] >= config["entity_min_score"]:
+                # Record the match: what was typed, where it was found, the exact value and the score.
                 matched.append({"text": entity["text"], "kind": entity["kind"], "table": table,
+                                # ... the column, the exact database value and the similarity score.
                                 "column": column, "value": best[0][2], "score": round(best[0][3], 3)})
             # Too weak a match: better to skip it than to use the wrong value.
             else:
+                # Record it as not found.
                 unmatched.append(entity)
     # A short note for the steps list, e.g. "'sahyadri credit fund' -> Sahyadri Credit Risk Fund".
     detail = "; ".join(f"'{m['text']}' -> {m['value']}" for m in matched) or "No names to match"

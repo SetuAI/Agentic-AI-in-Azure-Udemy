@@ -55,11 +55,13 @@ CONFIG = Path(__file__).resolve().parents[1] / "config"
 
 # Read one YAML file from config/ (also used by publish.py).
 def load_yaml(name: str) -> dict:
+    # Open config/<name> (closed automatically afterwards).
     with open(CONFIG / name) as f:
         # "or {}" returns an empty dict if the file is empty.
         return yaml.safe_load(f) or {}
 
 
+# Which (table, column) pairs hold personal data.
 def load_pii() -> set[tuple[str, str]]:
     """config/pii.yaml as a set of (table, column) pairs, for quick lookups."""
     # table -> list of PII columns.
@@ -92,6 +94,7 @@ def main() -> None:
     catalog = adapter.read_catalog()
     # Null rates, distinct counts and common values per column.
     stats = adapter.read_column_stats(catalog)
+    # Report what was found.
     print(f"  {len(catalog.tables)} tables, {len(catalog.foreign_keys)} declared foreign keys")
 
     # ---- 2. Find links ---------------------------------------------------
@@ -100,6 +103,7 @@ def main() -> None:
     found = link_finder.discover(adapter, catalog, stats, settings["link_discovery"])
     # Just the undeclared ones.
     inferred = [lk for lk in found if lk.source != "declared"]
+    # Report how many links of each kind.
     print(f"  {len(found) - len(inferred)} declared, {len(inferred)} undeclared links proposed")
 
     # Connect to agent_meta ...
@@ -114,13 +118,16 @@ def main() -> None:
         # earlier run; only their confidence and evidence are refreshed.
         # INSERT a new link; ON CONFLICT (it already exists) only refresh confidence and evidence.
         conn.execute(
+            # SQL: insert the link; if it already exists, only update confidence and evidence.
             """
             INSERT INTO meta_edges (from_table, from_column, to_table, to_column, source, confidence, evidence, status)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (from_table, from_column, to_table, to_column)
             DO UPDATE SET confidence = EXCLUDED.confidence, evidence = EXCLUDED.evidence
             """,
+            # The 8 values for the 8 %s placeholders ...
             (lk.from_table, lk.from_column, lk.to_table, lk.to_column, lk.source, lk.confidence,
+             # ... declared links are approved immediately; others start as proposed.
              lk.evidence, "approved" if lk.source == "declared" else "proposed"),
         )
 
@@ -129,8 +136,11 @@ def main() -> None:
     existing = dict(conn.execute("SELECT table_name, fingerprint FROM meta_tables WHERE description IS NOT NULL").fetchall())
     # Draft a table if --redraft was given, or it is new, or its columns changed.
     to_draft = [name for name, table in catalog.tables.items()
+                # (the fingerprint changes when columns or types change)
                 if args.redraft or existing.get(name) != note_writer.fingerprint(table)]
+    # Report how many tables need new notes.
     print(f"Drafting notes for {len(to_draft)} of {len(catalog.tables)} tables "
+          # (continued: how many are unchanged)
           f"({len(catalog.tables) - len(to_draft)} unchanged since the last run) ...")
     # Ask the LLM for notes: table name -> its JSON answer.
     drafted = note_writer.draft(adapter, catalog, stats, found, pii, to_draft, settings["notes"])
@@ -142,6 +152,7 @@ def main() -> None:
         # A new or changed table always goes back to 'draft': an approval
         # given to an older version of the table does not carry over.
         conn.execute(
+            # SQL: insert the note as 'draft', or replace an existing one and reset it to 'draft'.
             """
             INSERT INTO meta_tables (table_name, fingerprint, row_estimate, description, grain,
                                      business_terms, status, drafted_at, approved_at)
@@ -152,7 +163,9 @@ def main() -> None:
                 business_terms = EXCLUDED.business_terms, status = 'draft',
                 drafted_at = now(), approved_at = NULL
             """,
+            # The values: name, fingerprint, row estimate, description ...
             (name, note_writer.fingerprint(table), table.row_estimate, answer.get("description"),
+             # ... grain and business terms.
              answer.get("grain"), answer.get("business_terms", [])),
         )
         # Remove the table's old column notes ...
@@ -163,9 +176,12 @@ def main() -> None:
             s = stats.get((name, column.name))
             # One row per column: its type, whether it is PII, its distinct count and the drafted note.
             conn.execute(
+                # SQL: one column note.
                 """INSERT INTO meta_columns (table_name, column_name, data_type, is_pii, distinct_values, description)
                    VALUES (%s, %s, %s, %s, %s, %s)""",
+                # The values: table, column, type, is it PII ...
                 (name, column.name, column.data_type, (name, column.name) in pii,
+                 # ... distinct count (if known) and the drafted description.
                  s.distinct_values if s else None, answer["columns"].get(column.name)),
             )
     # Close the agent_meta connection.

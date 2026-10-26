@@ -63,6 +63,7 @@ Reply with a JSON object with exactly these keys:
   "columns":         an object mapping every column name to a one-sentence description"""
 
 
+# Used by build.py to skip tables whose columns have not changed.
 def fingerprint(table: Table) -> str:
     """
     A short hash of the table's column names and types. If a later run
@@ -75,11 +76,14 @@ def fingerprint(table: Table) -> str:
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
+# Writes one table's facts as plain text for the LLM.
 def _describe_for_model(table: Table, stats: dict, links: list[Link], pii: set,
+                        # adapter: used to read sample values; n_samples: how many examples to show.
                         adapter: PostgresAdapter, n_samples: int) -> str:
     """Build the text the model reads for one table."""
     # The first lines: name, row estimate, primary key, then a "Columns:" heading.
     lines = [f"Table: {table.name}", f"Estimated rows: {table.row_estimate:,}",
+             # Primary key columns, a blank line, then the "Columns:" heading.
              f"Primary key: {', '.join(table.primary_key) or 'none'}", "", "Columns:"]
     # One line per column.
     for column in table.columns:
@@ -89,19 +93,24 @@ def _describe_for_model(table: Table, stats: dict, links: list[Link], pii: set,
         facts = [column.data_type]
         # Add the empty-value rate and the number of distinct values.
         if s:
+            # e.g. "3% empty".
             facts.append(f"{s.null_fraction:.0%} empty")
+            # e.g. "~40 distinct values".
             facts.append(f"~{s.distinct_values:,.0f} distinct values")
         # PII column: say so, and show NO values.
         if (table.name, column.name) in pii:
+            # Never show example values of a PII column.
             facts.append("PERSONAL DATA - values withheld")
         # Any other column: show some example values.
         else:
             # Prefer the most common values from pg_stats; if there are none
             # (e.g. every value is different), read a few real ones instead.
             examples = (s.common_values if s and s.common_values else
+                        # ... otherwise read a few real values; keep at most n_samples.
                         adapter.sample_values(table.name, column.name, n_samples))[:n_samples]
             # Only if there are any.
             if examples:
+                # e.g. "examples: Equity, Debt, Hybrid".
                 facts.append("examples: " + ", ".join(examples))
         # e.g. "  - rtg_dt: date; 0% empty; ~900 distinct values; examples: ..."
         lines.append(f"  - {column.name}: " + "; ".join(facts))
@@ -110,16 +119,21 @@ def _describe_for_model(table: Table, stats: dict, links: list[Link], pii: set,
     related = [lk for lk in links if table.name in (lk.from_table, lk.to_table)]
     # Add a "Links:" section listing them.
     if related:
+        # A blank line, then a "Links:" heading.
         lines += ["", "Links:"]
+        # One line per link.
         for lk in related:
             # Say how each link was found.
             kind = "declared foreign key" if lk.source == "declared" else "undeclared, found by matching values"
+            # e.g. "  - transactions.arn_code -> distributors.arn_no (undeclared, ...)".
             lines.append(f"  - {lk.from_table}.{lk.from_column} -> {lk.to_table}.{lk.to_column} ({kind})")
     # Join all lines into one text.
     return "\n".join(lines)
 
 
+# Called by build.py with the tables that need notes.
 def draft(adapter: PostgresAdapter, catalog: Catalog, stats: dict, links: list[Link],
+          # tables_to_draft: which tables; settings: the "notes" section of metadata.yaml.
           pii: set, tables_to_draft: list[str], settings: dict) -> dict[str, dict]:
     """
     Draft notes for the named tables, several at a time.
@@ -129,6 +143,7 @@ def draft(adapter: PostgresAdapter, catalog: Catalog, stats: dict, links: list[L
     def one(table_name: str) -> tuple[str, dict]:
         # The text describing this table.
         prompt = _describe_for_model(catalog.tables[table_name], stats, links, pii,
+                                     # (the adapter and how many example values to show)
                                      adapter, settings["sample_values"])
         # Ask the strong model; returns a dict.
         answer = llm.chat_json("strong", SYSTEM_PROMPT, prompt)
@@ -151,6 +166,7 @@ def draft(adapter: PostgresAdapter, catalog: Catalog, stats: dict, links: list[L
         return dict(pool.map(one, tables_to_draft))
 
 
+# Turn notes into readable JSON text.
 def to_json(notes: dict) -> str:
     """Pretty-print notes, used by review.py."""
     # indent=2: readable layout; ensure_ascii=False: keep characters like ₹ as they are.

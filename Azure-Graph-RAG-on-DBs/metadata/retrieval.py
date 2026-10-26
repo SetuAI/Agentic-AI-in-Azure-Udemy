@@ -38,12 +38,14 @@ import re
 from metadata import llm
 
 
+# Helper: text -> vector text for pgvector.
 def _vector(question: str) -> str:
     """Embed one piece of text, written the way pgvector reads a vector."""
     # Embed a one-item list, take the first vector, write it as "[0.1, 0.2, ...]".
     return str(llm.embed([question])[0])
 
 
+# Used by the agent's select_tables step.
 def search_tables(conn, question: str, k: int = 5) -> list[tuple[str, float]]:
     """
     The k tables whose notes are closest in meaning to the question.
@@ -54,13 +56,17 @@ def search_tables(conn, question: str, k: int = 5) -> list[tuple[str, float]]:
     v = _vector(question)
     # Run the search; %s placeholders are filled from the tuple (v, v, k) in order.
     return conn.execute(
+        # SQL: the k nearest table notes and their similarity.
         """SELECT table_name, 1 - (embedding <=> %s::vector) AS score FROM meta_embeddings
            WHERE kind = 'table' ORDER BY embedding <=> %s::vector LIMIT %s""",
+        # The values for the three %s: the vector (twice) and k.
         (v, v, k),
     ).fetchall()
 
 
+# Used by the agent's match_entities step.
 def match_values(conn, text: str, k: int = 3, table: str | None = None,
+                 # table/column are optional (None = search every column).
                  column: str | None = None) -> list[tuple[str, str, str, float]]:
     """
     The k stored database values closest to a name as a user typed it.
@@ -72,14 +78,17 @@ def match_values(conn, text: str, k: int = 3, table: str | None = None,
     v = _vector(text)
     # "%s::text IS NULL OR table_name = %s": when no table is given, every table matches.
     return conn.execute(
+        # SQL: the k nearest values, optionally in one table and column.
         """SELECT table_name, column_name, content, 1 - (embedding <=> %s::vector) AS score
            FROM meta_embeddings
            WHERE kind = 'value' AND (%s::text IS NULL OR table_name = %s) AND (%s::text IS NULL OR column_name = %s)
            ORDER BY embedding <=> %s::vector LIMIT %s""",
+        # The values for the seven %s, in order.
         (v, table, table, column, column, v, k),
     ).fetchall()
 
 
+# Helper: AGE output -> a list of edge property dicts.
 def _parse_edges(agtype_text: str) -> list[dict]:
     """
     AGE returns graph results as "agtype" text: JSON with type tags added,
@@ -93,6 +102,7 @@ def _parse_edges(agtype_text: str) -> list[dict]:
     return [edge["properties"] for edge in json.loads(plain)]
 
 
+# Helper: ask AGE for every route between two tables.
 def _routes(conn, graph: str, a: str, b: str, max_hops: int) -> list[list[dict]]:
     """
     Every route between tables a and b, up to max_hops joins long.
@@ -101,9 +111,11 @@ def _routes(conn, graph: str, a: str, b: str, max_hops: int) -> list[list[dict]]
     """
     # Table names are put straight into the query text, so only allow safe characters.
     if not re.fullmatch(r"[a-z0-9_]+", a) or not re.fullmatch(r"[a-z0-9_]+", b):
+        # Refuse unsafe names.
         raise ValueError("table names must be lowercase letters, digits and underscores")
     # MATCH every path p between the two Table nodes of 1..max_hops edges; return its edges.
     rows = conn.execute(
+        # Cypher inside SQL (the graph name and table names are written into the text).
         f"""SELECT * FROM cypher('{graph}', $$
                 MATCH p = (x:Table {{name: '{a}'}})-[*1..{int(max_hops)}]-(y:Table {{name: '{b}'}})
                 RETURN relationships(p)
@@ -113,17 +125,21 @@ def _routes(conn, graph: str, a: str, b: str, max_hops: int) -> list[list[dict]]
     return [_parse_edges(str(r[0])) for r in rows]
 
 
+# Helper: pick the best of several routes.
 def _best(routes: list[list[dict]]) -> list[dict] | None:
     """Shortest route first; among equally short ones, the highest total confidence."""
     # No route at all.
     if not routes:
+        # Nothing to choose from.
         return None
     # min() with a key: fewest joins, then highest confidence (minus = higher is better),
     # then alphabetical, so the choice is always the same.
     return min(routes, key=lambda r: (len(r), -sum(e["confidence"] for e in r),
+                                      # (last tie-breaker: alphabetical order, so the result never changes between runs)
                                       [(e["from_table"], e["from_column"]) for e in r]))
 
 
+# Used by the agent's find_join_path step.
 def find_join_path(conn, tables: list[str], graph: str = "schema_graph", max_hops: int = 6) -> dict:
     """
     The joins needed to connect all the given tables.
@@ -151,16 +167,21 @@ def find_join_path(conn, tables: list[str], graph: str = "schema_graph", max_hop
                 route = _best(_routes(conn, graph, start, target, max_hops))
                 # Keep it as a candidate.
                 if route:
+                    # Keep it.
                     candidates.append(route)
         # No missing table can be reached: give up with a clear error.
         if not candidates:
+            # The tables that could not be connected.
             missing = [t for t in wanted if t not in joined]
+            # Stop with an error naming them.
             raise ValueError(f"No join route within {max_hops} hops to: {missing}")
         # The closest missing table's route.
         route = _best(candidates)
         # Add its joins (each only once) ...
         for edge in route:
+            # Avoid adding the same join twice.
             if edge not in joins:
+                # Add the join.
                 joins.append(edge)
             # ... and mark both of each join's tables as joined.
             joined.update((edge["from_table"], edge["to_table"]))

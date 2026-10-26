@@ -50,6 +50,7 @@ def select_tables(state: dict) -> dict:
     picks = [{"table": e["table"], "source": "entity", "reason": e["text"]} for e in state["entities"]]
     # Every approved metric the question needs adds its listed tables.
     for name in state["understanding"]["metrics"]:
+        # One pick per table listed for the metric in config/metrics.yaml.
         picks += [{"table": t, "source": "metric", "reason": name} for t in context.metrics()[name]["tables"]]
     # If approved metrics or matched names already say which tables are
     # needed, search only adds a couple more. Otherwise search does the work.
@@ -68,6 +69,7 @@ def select_tables(state: dict) -> dict:
             best = retrieval.search_tables(conn, phrase, k=1)
             # Add it only if its score is high enough.
             if best and best[0][1] >= config["phrase_min_score"]:
+                # Record the table, the phrase that found it, and its score.
                 picks.append({"table": best[0][0], "source": "need", "reason": phrase, "score": round(best[0][1], 3)})
     # Search results come last.
     picks += [{"table": name, "source": "search", "score": round(score, 3)} for name, score in found]
@@ -79,6 +81,7 @@ def select_tables(state: dict) -> dict:
     return {"tables": tables, "table_picks": _one_per_table(picks), "_detail": ", ".join(tables)}
 
 
+# Merge several picks of the same table into one.
 def _one_per_table(picks: list[dict]) -> list[dict]:
     """
     One pick per table, in first-picked order. A table needed by several
@@ -93,9 +96,11 @@ def _one_per_table(picks: list[dict]) -> list[dict]:
         m = merged.setdefault(p["table"], {"table": p["table"], "source": p["source"], "reasons": []})
         # Collect every different reason.
         if p.get("reason") and p["reason"] not in m["reasons"]:
+            # Add the reason.
             m["reasons"].append(p["reason"])
         # Keep the search score, if any.
         if "score" in p:
+            # Keep the score.
             m["score"] = p["score"]
     # Turn the reasons list into one text ("**m" copies the other keys).
     return [{**m, "reason": ", ".join(m.pop("reasons"))} for m in merged.values()]
@@ -106,11 +111,13 @@ def find_join_path(state: dict) -> dict:
     """Step 5."""
     # The AGE graph's name ("schema_graph" unless agent.yaml says otherwise).
     graph = context.agent_config().get("graph_name", "schema_graph")
+    # Open a connection to agent_meta (the AGE graph lives there).
     with context.agent_conn() as conn:
         # try/except: if find_join_path raises a ValueError, run the except block instead of crashing.
         try:
             # The shortest set of joins connecting all selected tables.
             path = retrieval.find_join_path(conn, state["tables"], graph=graph)
+        # Raised when a table cannot be reached in the graph.
         except ValueError as error:
             # Some table could not be connected. Carry on with what can be
             # joined; the SQL model is told which joins are available.
@@ -142,6 +149,7 @@ fund company's database. Rules:
 Reply with JSON: {"sql": "<the query>", "explanation": "<one sentence on what it calculates>"}"""
 
 
+# Builds the "Tables:" part of the SQL prompt.
 def _schema_text(tables: list[str]) -> str:
     """The approved notes for the given tables, written out for the model."""
     # All approved notes (cached).
@@ -152,11 +160,13 @@ def _schema_text(tables: list[str]) -> str:
     for name in tables:
         # Skip tables without approved notes.
         if name not in notes:
+            # Skip to the next table.
             continue
         # This table's notes.
         note = notes[name]
         # One line per column: name (type) [personal data]: description.
         columns = "\n".join(f"    {c} ({t}){' [personal data]' if pii else ''}: {d}"
+                            # c = column name, t = type, d = description, pii = personal data?
                             for c, t, d, pii in note["columns"])
         # The table's description, its grain, then its columns.
         parts.append(f"Table {name}: {note['description']} {note['grain']}.\n{columns}")
@@ -173,6 +183,7 @@ def write_sql(state: dict) -> dict:
     path = state["join_path"]
     # The join conditions as text (or a note that there are none).
     joins = "\n".join(f"  {j['from_table']}.{j['from_column']} = {j['to_table']}.{j['to_column']}"
+                      # One line per join, or a note when only one table is used.
                       for j in path["joins"]) or "  (single table, no joins)"
     # The approved definition of every metric the question needs.
     metric_text = "\n".join(f"  {m}: {context.metrics()[m]['definition']}" for m in understanding["metrics"]) or "  (none)"
@@ -181,18 +192,26 @@ def write_sql(state: dict) -> dict:
 
     # The parts of the message sent to the model, joined with blank lines below.
     prompt = [
+        # The full question.
         f"Question: {understanding['standalone_question']}",
+        # The period, as JSON (or null).
         f"Time range: {json.dumps(understanding.get('time_range'))}",
+        # The matched names and their exact values.
         f"Exact values for names in the question:\n{describe_entities(state['entities'])}",
+        # The metric recipes to follow.
         f"Approved metric definitions:\n{metric_text}",
+        # The joins to use.
         f"Join conditions:\n{joins}",
+        # The notes for every table on the join path.
         f"Tables:\n{_schema_text(path['tables'])}",
     ]
     # A follow-up: show the previous SQL so the model can refine it.
     if history:
+        # Add the last turn's SQL.
         prompt.append(f"Previous question's SQL (the user may be refining it):\n{history[-1]['sql']}")
     # A retry: show the failed SQL and what was wrong with it.
     if state.get("error"):
+        # Add the failed SQL and the problem.
         prompt.append(f"Your previous SQL failed. Fix it.\nPrevious SQL:\n{state['sql']}\nProblem: {state['error']}")
 
     # Call the strong model; it replies with {"sql": ..., "explanation": ...}.
@@ -201,11 +220,15 @@ def write_sql(state: dict) -> dict:
     attempts = state.get("attempts", 0) + 1
     # No SQL means the model refused: stop with the reason it gave.
     if not answer.get("sql"):
+        # Stop: mark the question as blocked with the model's reason.
         return {"status": "blocked", "attempts": attempts, "sql": None,
+                # The reason the model gave (or a default).
                 "block_reason": f"Refused: {answer.get('refusal', 'not a read-only question about this data')}",
+                # Note for the steps list.
                 "_detail": "Model refused to write SQL"}
     # Store the SQL (trimmed, without a trailing ";") and clear any previous error.
     return {"sql": answer["sql"].strip().rstrip(";"), "sql_explanation": answer.get("explanation"),
+            # Count the attempt and clear the previous error.
             "attempts": attempts, "error": None, "_detail": answer.get("explanation", "")}
 
 
@@ -217,6 +240,7 @@ def check_sql(state: dict) -> dict:
     # Run the structural checks; the known tables are the ones with approved notes.
     checks = sql_checks.check(state["sql"], set(context.table_notes()), config["date_filter_required"])
 
+    # Only if every structural check passed:
     if all(c["passed"] for c in checks):
         # Only a query that passed every structural check is shown to
         # EXPLAIN. EXPLAIN plans the query without running it.
@@ -227,29 +251,37 @@ def check_sql(state: dict) -> dict:
             ok = cost["total_cost"] <= config["run"]["max_plan_cost"]
             # Add the cost check's result, e.g. "Estimated cost 12,345, ~40 rows".
             checks.append({"check": "plan_cost", "passed": ok,
+                           # e.g. "Estimated cost 12,345, ~40 rows" ...
                            "detail": f"Estimated cost {cost['total_cost']:,.0f}, ~{cost['rows']:,} rows"
+                                     # ... plus the limit when it was exceeded.
                                      + ("" if ok else f" (limit {config['run']['max_plan_cost']:,})")})
         # EXPLAIN itself failed (e.g. a wrong column name): count it as a failed check.
         except Exception as error:
+            # Record the failure and the database's error message.
             checks.append({"check": "plan_cost", "passed": False, "detail": f"EXPLAIN failed: {error}"})
 
     # The checks that failed.
     failed = [c for c in checks if not c["passed"]]
     # What this step adds to the state, including the tables the SQL really reads.
     update = {"checks": checks, "sql_tables": sql_checks.tables_in(state["sql"]),
+              # Note for the steps list: the first failure, or "All checks passed".
               "_detail": "All checks passed" if not failed else failed[0]["detail"]}
     # Any failure sets "error", so graph.py retries or gives up.
     if failed:
+        # All failure messages in one text (given to write_sql on the retry).
         update["error"] = "; ".join(c["detail"] for c in failed)
+        # Remember this failed attempt for the demo page.
         update["failed_sql"] = _failed(state, "check_sql", update["error"])
     # Return the changes for LangGraph to merge.
     return update
 
 
+# Helper used by check_sql and run_sql.
 def _failed(state: dict, stage: str, error: str) -> list[dict]:
     """The failed attempts so far, plus this one (shown on the demo page)."""
     # Earlier failures plus a new entry for this one.
     return (state.get("failed_sql") or []) + [
+        # Which attempt, which step failed, the SQL, and the error.
         {"attempt": state["attempts"], "stage": stage, "sql": state["sql"], "error": error}]
 
 
@@ -258,18 +290,23 @@ def run_sql(state: dict) -> dict:
     """Step 8."""
     # The run limits: timeout_ms, row_cap.
     run = context.agent_config()["run"]
+    # Any error while running jumps to "except".
     try:
         # Run the query read-only, with the time limit and the row cap.
         columns, rows = context.adapter().run_readonly(state["sql"], timeout_ms=run["timeout_ms"], row_cap=run["row_cap"])
+    # The query failed (syntax, timeout, ...).
     except Exception as error:
         # The query failed: record the error so graph.py retries or gives up.
         return {"error": f"Query failed: {error}", "failed_sql": _failed(state, "run_sql", f"Query failed: {error}"),
+                # A short note (first 120 characters of the error).
                 "_detail": f"Failed: {str(error)[:120]}"}
     # Store the result, with every value made JSON-friendly.
     return {"result": {"columns": columns, "rows": [[_plain(v) for v in row] for row in rows]},
+            # Note for the steps list.
             "_detail": f"{len(rows):,} rows returned"}
 
 
+# Helper: convert one database value.
 def _plain(value):
     """
     Turn database values into plain JSON-friendly ones: Decimal -> float,
@@ -278,9 +315,11 @@ def _plain(value):
     """
     # Exact decimal -> ordinary float.
     if isinstance(value, Decimal):
+        # Decimal -> float.
         return float(value)
     # Date -> "YYYY-MM-DD" text.
     if isinstance(value, (date, datetime)):
+        # Date -> "YYYY-MM-DD".
         return value.isoformat()
     # Anything else is already plain.
     return value

@@ -44,12 +44,14 @@ from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 
+# Checks the two server parameters; stops with instructions if they are missing.
 def require_settings(conn) -> None:
     """Stop with clear instructions if the server parameters are not set yet."""
     # SHOW azure.extensions only works on Azure; elsewhere it raises an error.
     try:
         # The allow-listed extensions, e.g. "vector,age" (lowercased).
         allowed = conn.execute("SHOW azure.extensions").fetchone()[0].lower()
+    # Not an Azure server (e.g. a local Postgres):
     except psycopg.Error:
         allowed = None   # not an Azure server; nothing to allow-list
     # The libraries loaded at server start.
@@ -59,13 +61,17 @@ def require_settings(conn) -> None:
     problems = []
     # On Azure: VECTOR and AGE must both be allow-listed.
     if allowed is not None:
+        # Add a problem for each of VECTOR and AGE that is missing from the list.
         problems += [f"azure.extensions must include {name.upper()}"
+                     # (only for names missing from the comma-separated list)
                      for name in ("vector", "age") if name not in allowed.split(",")]
     # AGE must be preloaded.
     if "age" not in preload:
+        # Add the problem.
         problems.append("shared_preload_libraries must include AGE (then restart the server)")
     # Stop and list everything that still needs fixing.
     if problems:
+        # Stop with every problem listed.
         raise SystemExit("Server parameters not ready:\n  - " + "\n  - ".join(problems))
 
 
@@ -77,6 +83,7 @@ def main() -> None:
     data_url, agent_url = os.environ["DATA_DB_URL"], os.environ["AGENT_DB_URL"]
     # The database names inside them (mf_data, agent_meta).
     data_db = conninfo_to_dict(data_url)["dbname"]
+    # (and the agent database's name)
     agent_db = conninfo_to_dict(agent_url)["dbname"]
 
     # ---- 1 and 2: check parameters, create databases ---------------------
@@ -85,6 +92,7 @@ def main() -> None:
     with psycopg.connect(make_conninfo(data_url, dbname="postgres"), autocommit=True) as conn:
         # Which PostgreSQL version the server runs.
         version = conn.execute("SHOW server_version").fetchone()[0]
+        # Show which server version we reached.
         print(f"Connected: PostgreSQL {version}")
         # Stop here if the server parameters are not ready.
         require_settings(conn)
@@ -92,11 +100,15 @@ def main() -> None:
         existing = {r[0] for r in conn.execute("SELECT datname FROM pg_database")}
         # Create each of the two databases if it is missing.
         for name in (data_db, agent_db):
+            # Already created on an earlier run:
             if name in existing:
+                # just say so.
                 print(f"  database {name}: already there")
+            # Missing:
             else:
                 # sql.Identifier quotes the name safely.
                 conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
+                # Confirm.
                 print(f"  database {name}: created")
 
     # ---- 3: extensions in agent_meta -------------------------------------
@@ -108,7 +120,9 @@ def main() -> None:
         conn.execute("CREATE EXTENSION IF NOT EXISTS age")
         # Prove AGE really works (it fails here if the server was not restarted).
         conn.execute("SET search_path = public, ag_catalog")
+        # A tiny AGE query: fails here if AGE is not preloaded.
         conn.execute("SELECT count(*) FROM ag_catalog.ag_graph").fetchone()
+        # Confirm.
         print(f"  {agent_db}: pgvector and AGE ready")
 
     # Tell the user the next step.

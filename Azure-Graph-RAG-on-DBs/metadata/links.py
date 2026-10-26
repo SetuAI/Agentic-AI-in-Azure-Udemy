@@ -47,20 +47,27 @@ INTEGER_TYPES = {"integer", "bigint", "smallint"}
 def _type_family(data_type: str) -> str:
     # integer, bigint or smallint.
     if data_type in INTEGER_TYPES:
+        # All whole-number types count as one family.
         return "integer"
     # text, character varying(...), varchar(...).
     if data_type == "text" or data_type.startswith(("character", "varchar")):
+        # All text types count as one family.
         return "text"
     # Any other type stays as it is.
     return data_type
 
 
+# @dataclass: Link(from_table, from_column, to_table, to_column, source, confidence, evidence).
 @dataclass
 # One link: from_table.from_column points to to_table.to_column.
 class Link:
+    # The table holding the pointer.
     from_table: str
+    # The pointer column.
     from_column: str
+    # The table pointed to.
     to_table: str
+    # The column pointed to.
     to_column: str
     # How it was found: "declared", "same_name" or "value_overlap".
     source: str
@@ -84,7 +91,9 @@ def discover(adapter: PostgresAdapter, catalog: Catalog, stats: dict, settings: 
     declared = set()
     # Every declared foreign key becomes a certain link.
     for fk in catalog.foreign_keys:
+        # Record it as certain (confidence 1.0).
         links.append(Link(fk.from_table, fk.from_column, fk.to_table, fk.to_column,
+                          # source "declared", confidence 1.0, and the evidence text.
                           "declared", 1.0, "Declared as a foreign key in the database."))
         # Remember it so it is not "discovered" again below.
         declared.add((fk.from_table, fk.from_column))
@@ -100,9 +109,11 @@ def discover(adapter: PostgresAdapter, catalog: Catalog, stats: dict, settings: 
         types = {c.name: c.data_type for c in table.columns}
         # A single-column primary key is a target.
         if len(table.primary_key) == 1:
+            # Record (table, key column, its type).
             targets.append((table.name, table.primary_key[0], types[table.primary_key[0]]))
         # So is every single-column UNIQUE column.
         for column in table.unique_columns:
+            # Record (table, unique column, its type).
             targets.append((table.name, column, types[column]))
 
     # ---- SOURCES 2 and 3: undeclared links -----------------------------
@@ -112,39 +123,51 @@ def discover(adapter: PostgresAdapter, catalog: Catalog, stats: dict, settings: 
         for column in table.columns:
             # Skip columns already covered by a declared foreign key.
             if (table.name, column.name) in declared:
+                # Skip it.
                 continue
             # Skip a table's own single-column primary key: it is the thing
             # others point to, not a pointer itself.
             if table.primary_key == [column.name]:
+                # Skip it.
                 continue
 
             # Compare it with every possible target.
             for to_table, to_column, to_type in targets:
                 # Skip targets in the same table, and targets of a different type family.
                 if to_table == table.name or _type_family(to_type) != _type_family(column.data_type):
+                    # Skip this target.
                     continue
 
                 # SOURCE 2: same column name as the target.
                 if column.name == to_column:
+                    # Remember how it was found.
                     source = "same_name"
                 # SOURCE 3: different names; only try value matching (see below).
                 else:
                     # Value matching is only worth trying on text columns with
                     # enough different values; small lists match by coincidence.
                     distinct = stats.get((table.name, column.name))
+                    # Only text columns with at least min_distinct different values are tried.
                     if _type_family(column.data_type) != "text" or distinct is None \
                             or distinct.distinct_values < min_distinct:
+                        # Not worth trying: skip this target.
                         continue
+                    # Remember how it would be found.
                     source = "value_overlap"
 
                 # Check the real data: what share of this column's distinct values exist in the target.
                 share, checked = adapter.value_overlap(table.name, column.name, to_table, to_column)
                 # Enough overlap: propose the link, with the evidence written out.
                 if share >= min_overlap:
+                    # Propose the link (status "proposed" until a person approves it).
                     links.append(Link(
+                        # From/to columns, how it was found, and the overlap share as confidence ...
                         table.name, column.name, to_table, to_column, source, round(share, 3),
+                        # ... and the evidence, e.g. "100.0% of 600 distinct values in transactions.arn_code
                         f"{share:.1%} of {checked:,} distinct values in {table.name}.{column.name} "
+                        # exist in distributors.arn_no" ...
                         f"exist in {to_table}.{to_column}"
+                        # ... ending with "(same column name)." for same-name links.
                         + (" (same column name)." if source == "same_name" else "."),
                     ))
     # Declared links first, then the proposed ones.

@@ -77,6 +77,7 @@ app = FastAPI(title="FundGraph: ask the mutual fund database")
 STATIC = Path(__file__).parent.parent / "ui"
 
 
+# The JSON body of POST /query, e.g. {"question": "...", "conversation_id": null}.
 class QueryRequest(BaseModel):
     """What the caller sends. conversation_id ties follow-up questions together."""
     # The question text (required).
@@ -89,6 +90,7 @@ class QueryRequest(BaseModel):
 ON_APP_SERVICE = bool(os.environ.get("WEBSITE_SITE_NAME"))
 
 
+# Used by every endpoint that needs to know who is asking.
 def signed_in_user(http: Request) -> dict:
     """The user App Service signed in, or "local" when running on a laptop."""
     # The user ID header added by App Service sign-in (None if missing).
@@ -97,6 +99,7 @@ def signed_in_user(http: Request) -> dict:
     if not user_id:
         # ... on Azure: refuse with 401 (Unauthorized).
         if ON_APP_SERVICE:
+            # Stop and return HTTP 401.
             raise HTTPException(status_code=401, detail="Sign-in required")
         # ... on a laptop: everyone is "local".
         return {"id": "local", "name": "local"}
@@ -146,10 +149,13 @@ def query(request: QueryRequest, http: Request) -> dict:
     joins = [j for j in path.get("joins", []) if j["from_table"] in used and j["to_table"] in used]
     # The JSON response the demo page reads.
     return {
+        # completed / blocked / needs_clarification / failed.
         "status": state.get("status"),
+        # Send this back with the next question to ask a follow-up.
         "conversation_id": conversation_id,
         # Why it was blocked/failed, or the clarifying question, or None.
         "message": state.get("block_reason") or (understanding.get("clarification_question")
+                                                 # (the clarification question is used only when status is needs_clarification)
                                                  if state.get("status") == "needs_clarification" else None),
         # The result table (at most ROWS_SHOWN rows), or an empty list.
         "tables": [{"columns": result.get("columns", []), "rows": result.get("rows", [])[:ROWS_SHOWN]}] if result else [],
@@ -157,25 +163,45 @@ def query(request: QueryRequest, http: Request) -> dict:
         "commentary": state.get("commentary"),
         # Everything the agent did, for the "How this was answered" panel.
         "details": {
+            # The full question the agent answered.
             "standalone_question": understanding.get("standalone_question"),
+            # One sentence: what the user wants to know.
             "intent": understanding.get("intent"),
+            # The period it understood.
             "time_range": understanding.get("time_range"),
+            # Approved metrics it applied.
             "metrics_used": understanding.get("metrics", []),
+            # Names matched to exact values.
             "entities": state.get("entities", []),
+            # Names it could not match.
             "unmatched": state.get("unmatched", []),
+            # Every table selected.
             "tables_considered": state.get("tables", []),
+            # Why each table was selected.
             "table_picks": state.get("table_picks", []),
+            # Tables the SQL really read.
             "tables_used": used,
+            # Joins used.
             "join_path": joins,
+            # A note if some table could not be joined.
             "join_note": path.get("note"),
+            # The final SQL.
             "sql": state.get("sql"),
+            # What it calculates.
             "sql_explanation": state.get("sql_explanation"),
+            # Every safety check and its result.
             "checks": state.get("checks", []),
+            # How many times SQL was written.
             "attempts": state.get("attempts", 0),
+            # Earlier attempts that failed.
             "failed_sql": state.get("failed_sql", []),
+            # Total rows returned.
             "row_count": len(result.get("rows", [])),
+            # The row limit, so the page can warn when it was hit.
             "row_cap": context.agent_config()["run"]["row_cap"],
+            # The Prompt Shields result.
             "prompt_shield": state.get("prompt_shield"),
+            # Each step with its time and note.
             "steps": state.get("steps", []),
         },
     }
@@ -194,16 +220,21 @@ def schema_graph() -> dict:
     with context.agent_conn() as conn:
         # Every approved link between tables.
         edges = conn.execute(
+            # SQL: every approved link.
             """SELECT from_table, from_column, to_table, to_column, source FROM meta_edges
                WHERE status = 'approved' ORDER BY edge_id""").fetchall()
         # Every approved table with its description, grain and estimated row count.
         tables = conn.execute(
+            # SQL: every approved table.
             """SELECT table_name, description, grain, row_estimate FROM meta_tables
                WHERE status = 'approved' ORDER BY table_name""").fetchall()
     # zip pairs the column names with each row's values; dict(...) makes {name: value}.
     return {
+        # Just the table names.
         "nodes": [t[0] for t in tables],
+        # table -> {description, grain, rows}.
         "tables": {t[0]: {"description": t[1], "grain": t[2], "rows": t[3]} for t in tables},
+        # Each link as a dict with named fields.
         "edges": [dict(zip(["from_table", "from_column", "to_table", "to_column", "source"], e)) for e in edges],
     }
 
@@ -234,6 +265,7 @@ def table_counts() -> dict:
     counts = _table_counts()
     # key=lambda x: -x[1] sorts by count, largest first.
     return {"database": "mf_data", "total": sum(counts.values()),
+            # One {table, rows} per table, sorted largest first.
             "tables": [{"table": t, "rows": n} for t, n in sorted(counts.items(), key=lambda x: -x[1])]}
 
 

@@ -69,6 +69,7 @@ DEFAULT_POPULARITY = 2
 FREQUENCY_MONTHS = {"Monthly": 1, "Quarterly": 3}
 
 
+# Helper used for SIP dates. The leading "_" means "only used inside this file".
 def _add_months(dates: np.ndarray, months: np.ndarray, day_of_month: np.ndarray) -> np.ndarray:
     """
     Date that is `months` whole months after each date, on the given day of
@@ -115,15 +116,23 @@ def build(settings: Settings, plans: pl.DataFrame) -> tuple[dict[str, pl.DataFra
     for i, kind in enumerate(dist_types):
         # Position 0 is the pattern-5 distributor: use its fixed name.
         if i == 0:
+            # "Konkan Wealth Partners".
             dist_names.append(P.P5_DISTRIBUTOR_NAME)
+        # A bank: e.g. "Kaveri Bank Ltd".
         elif kind == "Bank":
+            # Add the generated name.
             dist_names.append(f"{rng.choice(NAME_WORDS)} Bank Ltd")
+        # An online platform: e.g. "KaveriInvest Online Pvt Ltd".
         elif kind == "Online Platform":
+            # Add the generated name.
             dist_names.append(f"{rng.choice(NAME_WORDS)}Invest Online Pvt Ltd")
+        # A national distributor: e.g. "Kaveri Wealth Management Ltd".
         elif kind == "National Distributor":
+            # Add the generated name.
             dist_names.append(f"{rng.choice(NAME_WORDS)} Wealth Management Ltd")
         # IFA (an individual advisor): e.g. "Patil Wealth Advisors".
         else:
+            # Surname + a random business word.
             dist_names.append(f"{rng.choice(SURNAMES)} {rng.choice(['Financial Services', 'Wealth Advisors', 'Investments', 'Capital'])}")
     # Make sure the pattern-5 distributor is an IFA, whatever was drawn.
     dist_types[0] = "IFA"

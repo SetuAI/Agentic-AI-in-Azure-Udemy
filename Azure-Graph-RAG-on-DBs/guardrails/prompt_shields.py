@@ -33,6 +33,7 @@ import urllib.request
 API_VERSION = "2024-09-01"
 
 
+# Called by the agent's first step (agent/steps/understand.py -> guard_input).
 def check(question: str, fail_open: bool) -> dict:
     """
     Returns {"attack": bool, "checked": bool, "note": str}.
@@ -45,13 +46,18 @@ def check(question: str, fail_open: bool) -> dict:
     key = os.environ.get("CONTENT_SAFETY_KEY")
     # Not configured: block or allow according to fail_open, and say why.
     if not endpoint or not key:
+        # fail_open=True -> attack False (let it through); fail_open=False -> attack True (block).
         return {"attack": not fail_open, "checked": False, "note": "Content Safety not configured"}
 
     # Build the HTTP request: URL, JSON body, POST method and headers (the key goes in a header).
     request = urllib.request.Request(
+        # The URL: endpoint + Prompt Shields path + API version.
         endpoint.rstrip("/") + f"/contentsafety/text:shieldPrompt?api-version={API_VERSION}",
+        # The body: the question as "userPrompt", no extra documents, as bytes.
         data=json.dumps({"userPrompt": question, "documents": []}).encode(),
+        # An HTTP POST request.
         method="POST",
+        # JSON content, and the key in Content Safety's header.
         headers={"Content-Type": "application/json", "Ocp-Apim-Subscription-Key": key},
     )
     # Anything that goes wrong inside "try" jumps to "except" below.
@@ -62,6 +68,7 @@ def check(question: str, fail_open: bool) -> dict:
             attack = json.load(response)["userPromptAnalysis"]["attackDetected"]
         # Return the verdict and a note for the steps list.
         return {"attack": bool(attack), "checked": True,
+                # A readable note for the steps list.
                 "note": "Prompt attack detected" if attack else "No prompt attack detected"}
     # Could not check: block or allow according to fail_open.
     except Exception as error:   # network failure, timeout, bad key, ...

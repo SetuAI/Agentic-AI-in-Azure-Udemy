@@ -91,6 +91,7 @@ CREATE INDEX IF NOT EXISTS meta_embeddings_hnsw
 """
 
 
+# Used everywhere a connection to agent_meta is needed.
 def connect(agent_db_url: str) -> psycopg.Connection:
     """
     Open a connection to agent_meta, ready for both SQL and AGE graph queries.
@@ -108,6 +109,7 @@ def connect(agent_db_url: str) -> psycopg.Connection:
     return conn
 
 
+# Called by build.py before writing anything.
 def ensure_schema(conn: psycopg.Connection) -> None:
     """Create the four tables and the index if they do not exist yet. Safe to run repeatedly."""
     # Run all the CREATE statements in one go.

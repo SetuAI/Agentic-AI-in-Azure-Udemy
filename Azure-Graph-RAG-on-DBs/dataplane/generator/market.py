@@ -135,6 +135,7 @@ def build(settings: Settings) -> tuple[dict[str, pl.DataFrame], pl.DataFrame]:
     add("Government of India", None, "Government", "Government", False)
     # Issuers 2-20: the 19 state governments.
     for state in STATES:
+        # e.g. "State Government of Kerala".
         add(f"State Government of {state}", None, "Government", "Government", False)
 
     # The fixed companies for the patterns.
@@ -159,21 +160,29 @@ def build(settings: Settings) -> tuple[dict[str, pl.DataFrame], pl.DataFrame]:
         word = str(rng.choice(NAME_WORDS))
         # Bank: e.g. "Kaveri City Bank Ltd".
         if roll < 0.07:
+            # Set the kind, sector and an invented bank name.
             kind, sector, name = "Bank", "Banking", f"{word} {rng.choice(['Commercial', 'Co-operative', 'City', 'National'])} Bank Ltd"
         # NBFC: e.g. "Kaveri Finance Ltd".
         elif roll < 0.17:
+            # Set the kind and sector ...
             kind, sector = "NBFC", "NBFC & Housing Finance"
+            # ... and an invented finance company name.
             name = f"{word} {rng.choice(['Finance', 'Capital', 'Housing Finance', 'Fincorp'])} Ltd"
         # PSU: a government-owned company, e.g. "Kaveri Power Corporation Ltd".
         elif roll < 0.25:
+            # Set the kind and a random PSU-type sector ...
             kind, sector = "PSU", str(rng.choice(["Power", "Oil & Gas", "Metals & Mining", "Logistics", "Capital Goods"]))
+            # ... and a name from its sector's first word.
             name = f"{word} {sector.split()[0]} Corporation Ltd"
         # Ordinary company: e.g. "Kaveri Steel Ltd".
         else:
+            # Set the kind and a random ordinary sector ...
             kind, sector = "Corporate", str(rng.choice(CORPORATE_SECTORS))
+            # ... and a name like "Kaveri Steel Ltd".
             name = f"{word} {rng.choice(SECOND_WORDS)} Ltd"
         # If the name was already used, throw it away and try again.
         if name in taken:
+            # Go round the loop again.
             continue
         # 40% chance the company belongs to a (non-pattern) group.
         group = str(rng.choice(other_groups)) if rng.random() < 0.40 else None
@@ -240,22 +249,27 @@ def build(settings: Settings) -> tuple[dict[str, pl.DataFrame], pl.DataFrame]:
     # bought below face value instead, so coupon is left empty.
     # 120 commercial papers, maturing within about 300 days of 15 Sep 2026.
     for issuer_id in rng.choice(np.setdiff1d(company_ids, [21]), 120):
+        # No coupon; matures 15 Sep 2026 + 0-299 days.
         securities.append((int(issuer_id), "Commercial Paper", None,
                            np.datetime64("2026-09-15") + np.timedelta64(int(rng.integers(0, 300)), "D")))
     # 60 certificates of deposit, issued by banks only.
     for issuer_id in rng.choice(bank_ids, 60):
+        # No coupon; matures 15 Sep 2026 + 0-299 days.
         securities.append((int(issuer_id), "Certificate of Deposit", None,
                            np.datetime64("2026-09-15") + np.timedelta64(int(rng.integers(0, 300)), "D")))
 
     # 150 government securities: 100 central, 50 state. And 50 treasury bills.
     # 100 central government securities ("_" = we do not need the loop counter).
     for _ in range(100):
+        # Issuer 1 (Government of India), coupon 6.8-7.6%, maturing 2027-2053.
         securities.append((1, "Government Security", round(float(rng.uniform(6.8, 7.6)), 4), maturity(2027, 2053)))
     # 50 state government securities (issuers 2-20).
     for _ in range(50):
+        # A random state (issuers 2-20), coupon 7.0-7.8%, maturing 2027-2040.
         securities.append((int(rng.integers(2, 21)), "Government Security", round(float(rng.uniform(7.0, 7.8)), 4), maturity(2027, 2040)))
     # 50 treasury bills from the central government.
     for _ in range(50):
+        # Issuer 1, no coupon, matures within 180 days of 15 Sep 2026.
         securities.append((1, "Treasury Bill", None,
                            np.datetime64("2026-09-15") + np.timedelta64(int(rng.integers(0, 180)), "D")))
 
@@ -314,10 +328,13 @@ def build(settings: Settings) -> tuple[dict[str, pl.DataFrame], pl.DataFrame]:
             # PATTERN 1: AA at the start, cut to AA- (outlook Negative),
             # then cut 3 notches to BBB- on the downgrade date.
             rating_rows.append((code, agency, "AA", settings.start, "Stable"))
+            # First cut: AA -> AA-, outlook Negative.
             rating_rows.append((code, agency, "AA-", P.P1_EARLIER_CUT_DATE, "Negative"))
+            # The big downgrade: AA- -> BBB- on the downgrade date.
             rating_rows.append((code, agency, "BBB-", P.P1_DOWNGRADE_DATE, "Negative"))
             # Its starting rating position (AA = position 2).
             first_rating[sec["security_id"]] = RATING_SCALE.index("AA")
+            # Done with this bond; go to the next security.
             continue
 
         # Starting rating depends on who issued it: banks and PSUs are the
@@ -326,10 +343,15 @@ def build(settings: Settings) -> tuple[dict[str, pl.DataFrame], pl.DataFrame]:
         kind = issuer_type[sec["issuer_id"]]
         # Position 0 = AAA, 1 = AA+, 2 = AA ... (repeated numbers make them more likely).
         if kind in ("Bank", "PSU"):
+            # Banks and PSUs: AAA, AA+ or AA.
             position = int(rng.choice([0, 0, 0, 1, 1, 2]))
+        # NBFCs:
         elif kind == "NBFC":
+            # AA+ down to A.
             position = int(rng.choice([1, 2, 2, 3, 3, 4, 5]))
+        # Other companies:
         else:
+            # AAA down to BBB.
             position = int(rng.choice([0, 1, 2, 2, 3, 3, 4, 5, 6, 7, 8]))
         # Remember the starting position for summaries.py.
         first_rating[sec["security_id"]] = position
@@ -346,6 +368,7 @@ def build(settings: Settings) -> tuple[dict[str, pl.DataFrame], pl.DataFrame]:
             date = date + np.timedelta64(int(rng.integers(60, 500)), "D")
             # Stop if that falls after the end of the window.
             if date > settings.end:
+                # Stop making changes for this security.
                 break
             # +1 = one notch worse (55% chance), -1 = one notch better.
             step = 1 if rng.random() < 0.55 else -1

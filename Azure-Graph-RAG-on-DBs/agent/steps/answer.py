@@ -48,10 +48,13 @@ def summarise(state: dict) -> dict:
 
     # Everything the model will see about the result.
     summary = {
+        # How many rows the query returned.
         "row_count": len(rows),
+        # The column names.
         "columns": columns,
         # The first n rows, each as {column: value}.
         "first_rows": [dict(zip(columns, r)) for r in rows[:n]],
+        # The totals worked out above.
         "column_totals": totals,
         # True if there were more rows than shown.
         "truncated": len(rows) > n,
@@ -83,7 +86,9 @@ def write_commentary(state: dict) -> dict:
     # The model gets the question, what the SQL calculates, and the summary as JSON
     # (default=str turns dates and decimals into text so json can write them).
     prompt = (f"Question: {state['understanding']['standalone_question']}\n"
+              # What the SQL calculates (from write_sql) ...
               f"What the query calculates: {state.get('sql_explanation')}\n\n"
+              # ... and the summary as JSON.
               f"Result summary:\n{json.dumps(state['summary'], indent=1, default=str)}")
     # Call the strong model; it replies with {"commentary": "..."}.
     answer = llm.chat_json("strong", COMMENTARY_PROMPT, prompt)
@@ -96,8 +101,11 @@ def remember(state: dict) -> dict:
     """Step 11. Keep the last 6 turns: enough for follow-ups, small enough to stay cheap."""
     # Earlier turns plus this one (its full question, SQL and row count).
     history = (state.get("history") or []) + [{
+        # The full (stand-alone) question ...
         "question": state["understanding"]["standalone_question"],
+        # ... the SQL that answered it ...
         "sql": state["sql"],
+        # ... and how many rows it returned.
         "row_count": state["summary"]["row_count"],
     }]
     # [-6:] keeps only the last 6 turns.

@@ -106,7 +106,9 @@ def main() -> None:
     # Guard against running from a broken checkout: if the files are
     # missing, stop with a clear message instead of "succeeding" at nothing.
     if len(sql_files) != 4:
+        # Stop the script with this message.
         raise SystemExit(
+            # The message says where it looked and how many it found.
             f"Expected 4 schema files in {SCHEMA_FOLDER}, found {len(sql_files)}."
         )
 

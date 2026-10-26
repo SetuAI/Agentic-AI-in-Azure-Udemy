@@ -68,10 +68,15 @@ P2_GROUP_NAME = "Trident Group"
 # The scheme that holds too much of that group.
 P2_SCHEME = "Sahyadri Mid Cap Fund"
 P2_COMPANIES = [                          # (company name, sector, weight %)
+    # Company 1 of 5: chemicals, 5.5%
     ("Trident Chemicals Ltd", "Chemicals", 5.5),
+    # Company 2 of 5: power, 5.0%
     ("Trident Power Ltd", "Power", 5.0),
+    # Company 3 of 5: chemicals, 4.8%
     ("Trident Polymers Ltd", "Chemicals", 4.8),
+    # Company 4 of 5: logistics, 4.5%
     ("Trident Logistics Ltd", "Logistics", 4.5),
+    # Company 5 of 5: real estate, 4.2%  (total about 24%)
     ("Trident Realty Ltd", "Real Estate", 4.2),
 ]
 

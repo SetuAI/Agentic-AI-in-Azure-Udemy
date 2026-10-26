@@ -61,6 +61,7 @@ SECTORAL = {
 }
 
 
+# Helper: a polars expression that moves a date column to its month end.
 def _month_end(col: str) -> pl.Expr:
     """The last day of the month of a date column, e.g. 2024-03-12 -> 2024-03-31."""
     # .dt.month_end() moves each date to the last day of its month.
@@ -123,6 +124,7 @@ def build_aum(transactions: pl.DataFrame, nav_history: pl.DataFrame, plans: pl.D
     return aum.select("scheme_id", "month_end_date", "aum_amount", "folio_count")
 
 
+# Helper: decides what each scheme may invest in.
 def _pools(facts: pl.DataFrame, category_code: str, scheme_name: str) -> list[tuple[pl.DataFrame, int, float]]:
     """
     Which securities a scheme may hold, as a list of (pool, how many to pick,
@@ -144,9 +146,11 @@ def _pools(facts: pl.DataFrame, category_code: str, scheme_name: str) -> list[tu
     if scheme_name in SECTORAL:
         # The sector IDs this fund may invest in.
         ids = [SECTOR_ID[s] for s in SECTORAL[scheme_name]]
+        # Shares from the fund's own sectors only.
         return [(eq.filter(pl.col("sector_id").is_in(ids)), 32, 100.0)]
     # Index funds: 50 shares from the whole market.
     if "Index" in scheme_name:
+        # 50 shares from the whole market.
         return [(eq, 50, 100.0)]
 
     # Everything else is decided by the category code (see CATEGORIES in fund_house.py).
@@ -180,6 +184,7 @@ def _pools(facts: pl.DataFrame, category_code: str, scheme_name: str) -> list[tu
     }.get(category_code, [(eq, 55, 100.0)])
 
 
+# Helper: scale and cap the random weights.
 def _cap_and_scale(weights: np.ndarray, total: float) -> np.ndarray:
     """
     Scale weights so they add up to `total`, with none above MAX_RANDOM_WEIGHT.
@@ -194,6 +199,7 @@ def _cap_and_scale(weights: np.ndarray, total: float) -> np.ndarray:
         over = w > MAX_RANDOM_WEIGHT
         # Nothing above the cap: finished.
         if not over.any():
+            # Leave the loop.
             break
         # How much weight sits above the cap in total.
         excess = (w[over] - MAX_RANDOM_WEIGHT).sum()
@@ -214,6 +220,7 @@ def build_holdings(settings, aum: pl.DataFrame, facts: pl.DataFrame) -> pl.DataF
     # The securities with a planted weight, looked up by issuer name.
     # Helper: the security_id of a company's share, found by the company's name.
     def equity_of(issuer_name):
+        # Find the row for that company's share and return its security_id.
         return int(facts.filter((pl.col("issuer_name") == issuer_name) & (pl.col("security_type") == "Equity"))["security_id"][0])
 
     # The downgraded bond (pattern 1).
@@ -242,6 +249,7 @@ def build_holdings(settings, aum: pl.DataFrame, facts: pl.DataFrame) -> pl.DataF
         months = aum.filter((pl.col("scheme_id") == scheme_id) & (pl.col("aum_amount") > 0)).sort("month_end_date")
         # A scheme with no money yet holds nothing: skip it.
         if len(months) == 0:
+            # Go to the next scheme.
             continue
         # Those month-end dates as a numpy array.
         month_dates = months["month_end_date"].to_numpy().astype("datetime64[D]")
@@ -254,10 +262,12 @@ def build_holdings(settings, aum: pl.DataFrame, facts: pl.DataFrame) -> pl.DataF
         if name in P.P1_HOLDERS:                                           # pattern 1
             # The bond's weight before and after March 2024.
             before, after, _share, _drop = P.P1_HOLDERS[name]
+            # From the March 2024 month end the weight drops (the fund sold some after the downgrade).
             fixed[p1_bond] = np.where(month_dates >= np.datetime64("2024-03-31"), after, before)
         if name == P.P2_SCHEME:                                            # pattern 2
             # The five Trident shares at the same weight every month.
             for sec_id, weight in p2.items():
+                # The same planted weight in every month.
                 fixed[sec_id] = np.full(n_months, weight)
         if name == P.P6_SCHEME:                                            # pattern 6
             fixed[p6] = np.where(month_dates >= P.P6_FROM, P.P6_WEIGHT_AFTER, P.P6_WEIGHT_BEFORE)
@@ -315,7 +325,9 @@ def build_holdings(settings, aum: pl.DataFrame, facts: pl.DataFrame) -> pl.DataF
 
             # Store this month's IDs, dates and weights.
             rows_sec.append(ids_all)
+            # This month's date, once per holding.
             rows_date.append(np.full(len(ids_all), month_dates[m]))
+            # This month's weights.
             rows_w.append(w_all)
 
         # This scheme's holdings for every month, as one table.

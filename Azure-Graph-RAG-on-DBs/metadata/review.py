@@ -47,6 +47,7 @@ from metadata import store
 def show_notes(conn) -> None:
     # One row per table, sorted by name.
     for name, status, rows, description, grain, terms in conn.execute(
+        # SQL: every table note.
         "SELECT table_name, status, row_estimate, description, grain, business_terms FROM meta_tables ORDER BY table_name"
     ).fetchall():
         # Table heading, e.g. "=== schemes  [draft]  ~40 rows".
@@ -59,7 +60,9 @@ def show_notes(conn) -> None:
         print(f"  Business terms: {', '.join(terms or [])}")
         # Then every column note of that table.
         for column, data_type, is_pii, note in conn.execute(
+            # SQL: that table's column notes.
             "SELECT column_name, data_type, is_pii, description FROM meta_columns WHERE table_name = %s",
+            # The value for %s: the table name.
             (name,),
         ).fetchall():
             # Mark personal-data columns.
@@ -76,6 +79,7 @@ def show_links(conn) -> None:
     print(f"  {'#':>3}  {'status':<9} {'source':<14} {'conf':>5}  link")
     # Undeclared links first (False sorts before True), then by ID.
     for edge_id, status, source, confidence, a, ac, b, bc, evidence in conn.execute(
+        # SQL: every link, with its status, source, confidence and evidence.
         """SELECT edge_id, status, source, confidence, from_table, from_column, to_table, to_column, evidence
            FROM meta_edges ORDER BY (source = 'declared'), edge_id"""
     ).fetchall():
@@ -83,6 +87,7 @@ def show_links(conn) -> None:
         print(f"  {edge_id:>3}  {status:<9} {source:<14} {float(confidence):>5.2f}  {a}.{ac} -> {b}.{bc}")
         # Found links also show their evidence underneath.
         if source != "declared":
+            # Indented under the link line.
             print(f"{'':>38}{evidence}")
 
 
@@ -90,9 +95,11 @@ def show_links(conn) -> None:
 def main() -> None:
     # Describe the options (shown by --help).
     parser = argparse.ArgumentParser(description="Review and approve drafted notes and proposed links.")
+    # --links: show only the links (skip the notes).
     parser.add_argument("--links", action="store_true", help="show only the links")
     # --reject-link ID may be given several times; each ID is added to a list.
     parser.add_argument("--reject-link", type=int, action="append", default=[], metavar="ID")
+    # --approve-all: approve everything still pending.
     parser.add_argument("--approve-all", action="store_true", help="approve every pending note and link")
     # Read the options actually typed.
     args = parser.parse_args()
@@ -104,28 +111,36 @@ def main() -> None:
 
     # Reject every link asked for.
     for edge_id in args.reject_link:
+        # Mark this link as rejected.
         conn.execute("UPDATE meta_edges SET status = 'rejected' WHERE edge_id = %s", (edge_id,))
+        # Confirm.
         print(f"Rejected link {edge_id}.")
 
     # --approve-all: approve every draft note and every proposed link, then stop.
     if args.approve_all:
         # .rowcount = how many rows the UPDATE changed.
         notes = conn.execute(
+            # SQL: approve every draft note and stamp the time.
             "UPDATE meta_tables SET status = 'approved', approved_at = now() WHERE status = 'draft'").rowcount
+        # Approve every proposed link; .rowcount = how many changed.
         links = conn.execute("UPDATE meta_edges SET status = 'approved' WHERE status = 'proposed'").rowcount
+        # Report and point to the next step.
         print(f"Approved {notes} table notes and {links} links. Next: uv run python -m metadata.publish")
         # Stop here; nothing is shown.
         return
 
     # Without --links, show the notes too.
     if not args.links:
+        # Print the table and column notes.
         show_notes(conn)
     # Always show the links.
     show_links(conn)
 
     # How many notes and links still wait for a decision.
     pending_notes = conn.execute("SELECT count(*) FROM meta_tables WHERE status = 'draft'").fetchone()[0]
+    # Links still waiting.
     pending_links = conn.execute("SELECT count(*) FROM meta_edges WHERE status = 'proposed'").fetchone()[0]
+    # Report what is still pending.
     print(f"\nPending: {pending_notes} notes, {pending_links} links.")
     # Close the connection.
     conn.close()

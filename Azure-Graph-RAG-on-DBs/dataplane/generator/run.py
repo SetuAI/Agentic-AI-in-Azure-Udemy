@@ -89,6 +89,7 @@ def main() -> None:
     print("5/5 AUM and holdings")
     # AUM per scheme per month end, from transactions, NAVs, plans and folios.
     tables["scheme_aum_monthly"] = summaries.build_aum(
+        # The inputs: transactions, NAVs, plans and folios.
         tables["transactions"], tables["nav_history"], tables["scheme_plans"], tables["folios"])
     # What each scheme holds each month end, sized to match the AUM just built.
     tables["portfolio_holdings"] = summaries.build_holdings(settings, tables["scheme_aum_monthly"], security_facts)
