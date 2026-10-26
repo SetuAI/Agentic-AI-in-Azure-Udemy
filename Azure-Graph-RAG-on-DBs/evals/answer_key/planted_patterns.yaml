@@ -16,8 +16,15 @@
 # which dates, and which direction the numbers move.
 # =============================================================================
 
+# Each "- id:" item below is one pattern. Fields:
+#   name           -> short title
+#   demo_question  -> the question that should reveal it
+#   facts          -> the fixed facts a correct answer must contain
+#   tables_needed  -> the tables a correct query has to use
+#   note / correct_wording -> extra guidance for the scorer
 planted_patterns:
 
+  # Pattern 1: see P1_* in dataplane/generator/patterns.py.
   - id: 1
     name: Redemption spike after a bond downgrade
     demo_question: Why did net flows in Sahyadri Credit Risk Fund drop in March 2024?
@@ -30,6 +37,7 @@ planted_patterns:
     tables_needed: [schemes, scheme_plans, transactions, portfolio_holdings, securities, issuers, credit_rating_history]
     correct_wording: The drop happened in the same month as the downgrade. The data shows timing, not cause.
 
+  # Pattern 2: see P2_* in dataplane/generator/patterns.py.
   - id: 2
     name: High exposure to one business group
     demo_question: Which scheme has the highest exposure to a single business group?
@@ -39,6 +47,7 @@ planted_patterns:
       exposure: About 24% across 5 companies, each under 10% on its own.
     tables_needed: [portfolio_holdings, securities, issuers, issuer_groups, schemes]
 
+  # Pattern 3: see P3_* in dataplane/generator/patterns.py.
   - id: 3
     name: Performance change after a manager change
     demo_question: Did Sahyadri Focused Fund perform differently after its manager changed?
@@ -49,6 +58,7 @@ planted_patterns:
       effect: Trails its benchmark before the change, beats it after.
     tables_needed: [schemes, scheme_manager_assignments, fund_managers, nav_history, scheme_plans, benchmark_values]
 
+  # Pattern 4: see P4_* in dataplane/generator/patterns.py.
   - id: 4
     name: SIP cancellations rising in one city tier
     demo_question: Where are SIP cancellations rising?
@@ -58,6 +68,7 @@ planted_patterns:
       effect: Tier-3 cancellations in the last 12 months are more than 3x the previous 12 months. Tiers 1 and 2 barely change.
     tables_needed: [sip_registrations, folios, investors]
 
+  # Pattern 5: see P5_* in dataplane/generator/patterns.py.
   - id: 5
     name: One distributor with a high rejection rate
     demo_question: Which distributor has the highest transaction rejection rate?
@@ -68,6 +79,7 @@ planted_patterns:
     tables_needed: [transactions, distributors]
     note: Joins transactions.arn_code to distributors.arn_no, which is hidden link 3.
 
+  # Pattern 6: see P6_* in dataplane/generator/patterns.py.
   - id: 6
     name: One scheme above the 10% single-issuer limit
     demo_question: Is any scheme above the 10% single-issuer limit?

@@ -18,32 +18,49 @@ them again for every question. (Restart the server after re-running
 metadata.publish, so it picks up new notes.)
 """
 
+# os: reads environment variables (DATA_DB_URL, AGENT_DB_URL).
 import os
+
+# lru_cache: remembers a function's result (see the explanation above).
 from functools import lru_cache
+
+# Path: builds the path to the config/ folder.
 from pathlib import Path
 
+# yaml: reads the YAML config files.
 import yaml
+
+# load_dotenv: copies .env values into environment variables.
 from dotenv import load_dotenv
 
+# The read-only gateway to the fund database.
 from adapters.postgres import PostgresAdapter
+
+# Opens connections to agent_meta.
 from metadata import store
 
+# This file is agent/context.py; parents[1] is the project folder; add "config".
 CONFIG = Path(__file__).resolve().parents[1] / "config"
+# Read .env as soon as this module is imported.
 load_dotenv()
 
 
+# maxsize=1: keep exactly one remembered result.
 @lru_cache(maxsize=1)
 def agent_config() -> dict:
+    # Read config/agent.yaml and return it as a dict.
     return yaml.safe_load((CONFIG / "agent.yaml").read_text())
 
 
 @lru_cache(maxsize=1)
 def metrics() -> dict:
+    # Read config/metrics.yaml and return just the "metrics" section.
     return yaml.safe_load((CONFIG / "metrics.yaml").read_text())["metrics"]
 
 
 @lru_cache(maxsize=1)
 def adapter() -> PostgresAdapter:
+    # One adapter for the fund database, shared by every question.
     return PostgresAdapter(os.environ["DATA_DB_URL"])
 
 
@@ -53,6 +70,7 @@ def agent_conn():
     when done ("with agent_conn() as conn:"), so two questions arriving at
     the same time never share one connection.
     """
+    # Not cached: every call returns a brand-new connection.
     return store.connect(os.environ["AGENT_DB_URL"])
 
 
@@ -62,13 +80,19 @@ def table_notes() -> dict[str, dict]:
     table name -> {"description", "grain", "columns": [(name, type, description, is_pii), ...]}
     Only approved notes: an unreviewed draft never reaches the SQL model.
     """
+    # Filled in below: table name -> its notes.
     notes = {}
+    # Open a connection to agent_meta (closed automatically afterwards).
     with agent_conn() as conn:
+        # Loop over every APPROVED table note (grain = what one row represents).
         for name, description, grain in conn.execute(
             "SELECT table_name, description, grain FROM meta_tables WHERE status = 'approved'"
         ).fetchall():
+            # That table's column notes, sorted by column name.
             columns = conn.execute(
                 """SELECT column_name, data_type, description, is_pii FROM meta_columns
                    WHERE table_name = %s ORDER BY column_name""", (name,)).fetchall()
+            # Store this table's notes.
             notes[name] = {"description": description, "grain": grain, "columns": columns}
+    # Hand back all notes (cached after the first call).
     return notes

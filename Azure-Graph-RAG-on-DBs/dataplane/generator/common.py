@@ -23,21 +23,30 @@ the code simple. Every transaction is dated on a business day, so a NAV
 always exists for its date.
 """
 
+# "dataclass" lets us write a small class that just holds values (see Settings below).
 from dataclasses import dataclass
+
+# "Path" builds file paths that work on Windows, Mac and Linux alike.
 from pathlib import Path
 
+# numpy: fast arrays of numbers and dates; "np" is the usual short name.
 import numpy as np
+
+# yaml: reads the config/generator.yaml settings file.
 import yaml
 
 # The project's top folder. This file is at dataplane/generator/common.py,
 # so going up three levels (generator -> dataplane -> project) reaches it.
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# The full path of the settings file. "/" joins folder and file names.
 CONFIG_FILE = PROJECT_ROOT / "config" / "generator.yaml"
 
 
 # ---------------------------------------------------------------------------
 # SETTINGS
 # ---------------------------------------------------------------------------
+# @dataclass automatically writes the __init__ method for us, so we can call
+# Settings(rng=..., scale=..., start=..., end=...).
 @dataclass
 class Settings:
     """
@@ -53,25 +62,32 @@ class Settings:
     start: np.datetime64        # first day of the window, e.g. 2021-09-01
     end: np.datetime64          # last day of the window, e.g. 2026-08-31
 
+    # A method (a function that belongs to Settings). "self" is the Settings object.
     def scaled(self, full_size: int) -> int:
         """
         Turn a full-size row count into the count for this run's scale.
         Example: scaled(200_000) is 40_000 when scale is 0.2.
         max(1, ...) makes sure we never ask for zero rows.
         """
+        # Multiply by the scale, round to a whole number, never less than 1.
         return max(1, round(full_size * self.scale))
 
 
+# Called once at the start of every run (see run.py).
 def load_settings() -> Settings:
     """Read config/generator.yaml and build a Settings object from it."""
+    # Open the YAML file; "with" closes it automatically afterwards.
     with open(CONFIG_FILE) as f:
+        # Turn the YAML text into a Python dict, e.g. {"seed": 42, "scale": 0.2, ...}.
         config = yaml.safe_load(f)
 
+    # Build and return the Settings object from the values just read.
     return Settings(
         # default_rng(seed) creates numpy's recommended random generator.
         # Every random number in the whole run comes from this one object,
         # in a fixed order, so the same seed gives the same database.
         rng=np.random.default_rng(config["seed"]),
+        # float() makes sure the scale is a decimal number, even if written as "1".
         scale=float(config["scale"]),
         # "datetime64[D]" is numpy's date type, precise to one day.
         start=np.datetime64(config["start_date"], "D"),
@@ -82,6 +98,7 @@ def load_settings() -> Settings:
 # ---------------------------------------------------------------------------
 # DATES
 # ---------------------------------------------------------------------------
+# Returns an array of dates (np.ndarray = a numpy array).
 def business_days(start: np.datetime64, end: np.datetime64) -> np.ndarray:
     """
     Every Monday-to-Friday date from start to end, both included.
@@ -89,7 +106,9 @@ def business_days(start: np.datetime64, end: np.datetime64) -> np.ndarray:
     np.arange(start, end + 1) gives every calendar day. np.is_busday()
     returns True for Monday to Friday, and we keep only those.
     """
+    # Every calendar day. "+ 1 day" because arange stops BEFORE its end value.
     all_days = np.arange(start, end + np.timedelta64(1, "D"), dtype="datetime64[D]")
+    # Keep only the days where is_busday is True (Monday to Friday).
     return all_days[np.is_busday(all_days)]
 
 
@@ -98,6 +117,8 @@ def roll_forward(dates: np.ndarray) -> np.ndarray:
     Move any Saturday or Sunday forward to the following Monday.
     Business days are left unchanged. Used so every transaction date has a NAV.
     """
+    # busday_offset(..., 0, roll="forward"): move 0 business days, but first roll
+    # a weekend date forward to Monday.
     return np.busday_offset(dates.astype("datetime64[D]"), 0, roll="forward")
 
 
@@ -109,10 +130,12 @@ def month_ends(start: np.datetime64, end: np.datetime64) -> np.ndarray:
     How it works: datetime64[M] counts in whole months. Adding 1 month to a
     month and going back 1 day lands on the last day of the original month.
     """
+    # Every month in the window, e.g. 2021-09, 2021-10, ..., 2026-08.
     months = np.arange(
         start.astype("datetime64[M]"),
         end.astype("datetime64[M]") + np.timedelta64(1, "M"),
     )
+    # Next month's first day minus one day = this month's last day.
     return (months + np.timedelta64(1, "M")).astype("datetime64[D]") - np.timedelta64(1, "D")
 
 
@@ -125,13 +148,19 @@ def to_dates(values) -> list:
     list that mixes numpy date objects with None. It would store them as
     generic "objects", which cannot be written out as CSV for loading.
     """
+    # The result list we fill in below.
     out = []
+    # Look at each value one by one.
     for v in values:
+        # np.isnat = "is Not-a-Time" (numpy's empty date). Empty -> store None.
         if v is None or np.isnat(np.datetime64(v)):
+            # None becomes an empty (NULL) cell in the table.
             out.append(None)
+        # Otherwise it is a real date.
         else:
             # .item() turns a numpy date into a Python datetime.date.
             out.append(np.datetime64(v, "D").item())
+    # Give back the list of Python dates (and Nones).
     return out
 
 
@@ -144,15 +173,22 @@ def random_dates(settings: Settings, low: np.ndarray, high: np.ndarray) -> np.nd
     to a business day. Where the move would pass high, we move backward
     instead, so the result always stays inside the range.
     """
+    # Make sure both arrays hold whole-day dates.
     low = low.astype("datetime64[D]")
     high = high.astype("datetime64[D]")
+    # How many days lie between low and high, for every position.
     span = (high - low).astype(int)
     # rng.random() gives a number from 0 up to (not including) 1.
     # Multiplying by (span + 1) and taking the floor gives 0 .. span.
     offsets = np.floor(settings.rng.random(len(low)) * (span + 1)).astype(int)
+    # Add the random number of days to each low date.
     picked = low + offsets.astype("timedelta64[D]")
+    # The picked date moved forward to a business day (weekend -> Monday).
     forward = np.busday_offset(picked, 0, roll="forward")
+    # The picked date moved backward to a business day (weekend -> Friday).
     backward = np.busday_offset(picked, 0, roll="backward")
+    # np.where(condition, a, b): take "forward" where it stays inside the range,
+    # otherwise take "backward".
     return np.where(forward <= high, forward, backward)
 
 
@@ -164,6 +200,7 @@ def random_dates(settings: Settings, low: np.ndarray, high: np.ndarray) -> np.nd
 # belong to nobody in particular. Company, group and index names are
 # invented, so nothing can be mistaken for a real company.
 
+# First names used to build fictitious investor names.
 FIRST_NAMES = [
     "Aarav", "Aditi", "Aditya", "Akash", "Amit", "Ananya", "Anil", "Anjali", "Arjun",
     "Asha", "Deepak", "Divya", "Gaurav", "Geeta", "Harish", "Isha", "Karan", "Kavita",
@@ -173,6 +210,7 @@ FIRST_NAMES = [
     "Vinod", "Yash", "Zoya", "Farhan", "Imran", "Joseph", "Mary", "Harpreet", "Gurpreet",
 ]
 
+# Surnames used to build fictitious investor and manager names.
 SURNAMES = [
     "Sharma", "Verma", "Patil", "Deshmukh", "Kulkarni", "Joshi", "Iyer", "Nair", "Menon",
     "Reddy", "Rao", "Naidu", "Gupta", "Agarwal", "Mehta", "Shah", "Desai", "Patel",
@@ -183,6 +221,7 @@ SURNAMES = [
 
 # (city, state, two-letter state code, city tier)
 # Tier 1 = large metro, 2 = mid-size city, 3 = smaller town.
+# Each entry is one tuple: (city, state, state code, tier).
 CITIES = [
     ("Mumbai", "Maharashtra", "MH", 1), ("Delhi", "Delhi", "DL", 1),
     ("Bengaluru", "Karnataka", "KA", 1), ("Chennai", "Tamil Nadu", "TN", 1),
@@ -206,6 +245,7 @@ CITIES = [
 TIER_SHARE = {1: 0.50, 2: 0.30, 3: 0.20}
 
 # Words used to build invented company and group names.
+# First words of invented names, e.g. "Kaveri" in "Kaveri Power".
 NAME_WORDS = [
     "Ashoka", "Trident", "Vardhaman", "Kaveri", "Narmada", "Godavari", "Himgiri", "Vindhya",
     "Satpura", "Aravalli", "Konark", "Pratap", "Shivalik", "Nilgiri", "Malabar", "Coromandel",
@@ -218,6 +258,7 @@ NAME_WORDS = [
     "Vikas", "Yashoda", "Amrit", "Bharati", "Dhruva", "Gagan", "Indra", "Jyoti",
 ]
 
+# Second words of invented company names, e.g. "Power" in "Kaveri Power".
 SECOND_WORDS = [
     "Industries", "Enterprises", "Holdings", "Technologies", "Infra", "Power", "Chemicals",
     "Steel", "Textiles", "Motors", "Foods", "Pharma", "Energy", "Cement", "Logistics",

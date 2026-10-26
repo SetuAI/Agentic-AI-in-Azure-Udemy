@@ -53,6 +53,7 @@
 --
 -- This is safe ONLY because mf_data holds synthetic data. The client deletes
 -- the whole dataplane/ folder; this file is never run on their database.
+-- DROP TABLE removes each table listed below (one name per line, separated by commas).
 DROP TABLE IF EXISTS
     scheme_aum_monthly,
     nav_history,
@@ -63,6 +64,7 @@ DROP TABLE IF EXISTS
     benchmark_values,
     benchmarks,
     scheme_categories
+-- CASCADE (explained above) ends the DROP statement; ";" marks the end of an SQL statement.
 CASCADE;
 
 
@@ -72,6 +74,8 @@ CASCADE;
 -- SEBI puts every mutual fund scheme into one category, such as "Large Cap
 -- Fund" or "Liquid Fund". Questions like "net flows into debt funds" are
 -- answered by grouping schemes through this table.
+-- CREATE TABLE makes a new, empty table. Each line inside the brackets is one column:
+--   column_name   data_type   rules
 CREATE TABLE scheme_categories (
     -- The table's own ID number. Other tables store this number to say
     -- "this scheme belongs to category 7".
@@ -95,6 +99,7 @@ CREATE TABLE scheme_categories (
     risk_level      text NOT NULL
         CHECK (risk_level IN ('Low', 'Low to Moderate', 'Moderate',
                               'Moderately High', 'High', 'Very High'))
+-- The closing bracket and ";" finish the CREATE TABLE statement.
 );
 
 
@@ -105,7 +110,9 @@ CREATE TABLE scheme_categories (
 -- if its return was higher than the index's return over the same period.
 -- Names are fictitious, so nothing in the demo can be mistaken for a real index.
 CREATE TABLE benchmarks (
+    -- The benchmark's own ID number (unique, never empty).
     benchmark_id    integer PRIMARY KEY,
+    -- The benchmark's name. text = any length of characters; NOT NULL = must be filled in.
     benchmark_name  text NOT NULL UNIQUE,
 
     -- What kind of market the index tracks. Used to check that an equity
@@ -149,6 +156,7 @@ CREATE TABLE benchmark_values (
 -- =============================================================================
 -- The funds themselves, e.g. "Sahyadri Credit Risk Fund".
 CREATE TABLE schemes (
+    -- The scheme's own ID number. Many other tables point to it.
     scheme_id       integer PRIMARY KEY,
 
     -- The fund house's internal code for the scheme.
@@ -169,6 +177,7 @@ CREATE TABLE schemes (
     -- no transaction may be dated before its scheme's launch_date.
     launch_date     date NOT NULL,
 
+    -- Is the scheme still running? DEFAULT 'Active' is used when no value is given.
     scheme_status   text NOT NULL DEFAULT 'Active'
         CHECK (scheme_status IN ('Active', 'Merged', 'Closed')),
 
@@ -194,10 +203,14 @@ CREATE TABLE schemes (
 -- Each version has its own NAV, its own expense ratio and its own ISIN.
 -- Transactions, NAVs and SIPs all point to a PLAN, not to a scheme.
 CREATE TABLE scheme_plans (
+    -- The plan's own ID number.
     plan_id             integer PRIMARY KEY,
+    -- Which scheme this plan belongs to (foreign key to schemes).
     scheme_id           integer NOT NULL REFERENCES schemes (scheme_id),
 
+    -- Direct (no distributor) or Regular (through a distributor).
     plan_type           text NOT NULL CHECK (plan_type IN ('Direct', 'Regular')),
+    -- Growth (profits reinvested) or IDCW (profits paid out to the investor).
     option_type         text NOT NULL CHECK (option_type IN ('Growth', 'IDCW')),
 
     -- ISIN: the 12-character international code that identifies this plan
@@ -218,11 +231,18 @@ CREATE TABLE scheme_plans (
 -- =============================================================================
 -- 6. fund_managers                                             (about 25 rows)
 -- =============================================================================
+-- The people who decide what each scheme buys and sells.
 CREATE TABLE fund_managers (
+    -- The manager's own ID number.
     manager_id          integer PRIMARY KEY,
+    -- The manager's full name.
     manager_name        text NOT NULL,
+    -- Years of experience. smallint = a small whole number; it can never be negative.
     experience_years    smallint NOT NULL CHECK (experience_years >= 0),
+    -- Degrees / certificates, e.g. 'CFA'. No NOT NULL, so it may be left empty.
     qualification       text,
+    -- The day the manager joined this fund house (AMC = Asset Management Company).
+    -- No comma after the last column, because nothing follows it.
     joined_amc_date     date NOT NULL
 );
 
@@ -236,12 +256,17 @@ CREATE TABLE fund_managers (
 -- PLANTED PATTERN 3 lives here: one scheme changes its primary manager
 -- partway through the 5 years, and its performance changes after that date.
 CREATE TABLE scheme_manager_assignments (
+    -- The assignment's own ID number.
     assignment_id   integer PRIMARY KEY,
+    -- Which scheme was managed (foreign key to schemes).
     scheme_id       integer NOT NULL REFERENCES schemes (scheme_id),
+    -- Who managed it (foreign key to fund_managers).
     manager_id      integer NOT NULL REFERENCES fund_managers (manager_id),
 
+    -- The lead manager ('Primary') or a helper ('Co-manager').
     manager_role    text NOT NULL CHECK (manager_role IN ('Primary', 'Co-manager')),
 
+    -- The first day of this assignment.
     start_date      date NOT NULL,
 
     -- NULL (empty) means "still managing today". A filled date means the
@@ -259,7 +284,9 @@ CREATE TABLE scheme_manager_assignments (
 -- NAV (Net Asset Value) is the price of one unit of a plan on a given day.
 -- Returns are calculated from it: 1-year return = (NAV today / NAV a year ago) - 1.
 CREATE TABLE nav_history (
+    -- Which plan this price is for (foreign key to scheme_plans).
     plan_id     integer NOT NULL REFERENCES scheme_plans (plan_id),
+    -- The trading day of this price.
     nav_date    date NOT NULL,
 
     -- numeric(12,4): NAVs are published to 4 decimal places.
@@ -301,5 +328,6 @@ CREATE TABLE scheme_aum_monthly (
     -- How many investor accounts (folios) held this scheme that month.
     folio_count     integer NOT NULL CHECK (folio_count >= 0),
 
+    -- One AUM row per scheme per month end.
     PRIMARY KEY (scheme_id, month_end_date)
 );

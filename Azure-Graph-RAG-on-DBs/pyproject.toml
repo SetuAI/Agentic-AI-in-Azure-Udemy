@@ -1,32 +1,67 @@
+# =============================================================================
+# pyproject.toml  -  the project's "ID card" for Python tooling
+# =============================================================================
+# "uv" reads this file to know which Python version and which libraries the
+# project needs. To install everything into a local .venv folder run:
+#     uv sync
+# Lines starting with "#" are comments; TOML ignores them.
+# =============================================================================
+
+# [project] = basic facts about this project.
 [project]
+# The project's name (only used by packaging tools, not imported anywhere).
 name = "azure-fundgraph-rag-on-db"
+# The project's version number.
 version = "0.1.0"
+# Python 3.12 or newer is required (the code uses modern syntax like "str | None").
 requires-python = ">=3.12"
+# Libraries the app needs at run time. ">=" means "this version or newer".
 dependencies = [
+    # Sends logs, traces and metrics to Azure Application Insights.
     "azure-monitor-opentelemetry>=1.8.10",
+    # The web framework that serves the HTTP API (api/main.py).
     "fastapi>=0.141.1",
+    # Builds the agent as a graph of steps (agent/graph.py).
     "langgraph>=1.2.11",
+    # Optional tracing of every agent step to LangSmith.
     "langsmith>=0.13.0",
+    # Fast maths on arrays - used for vector (embedding) similarity.
     "numpy>=2.5.3",
+    # Official OpenAI client; it also talks to Azure OpenAI.
     "openai>=3.16.2",
+    # Records every PostgreSQL query as a trace span in Application Insights.
     "opentelemetry-instrumentation-psycopg==0.65b0",
+    # Fast DataFrame library used to generate and write the synthetic data.
     "polars>=1.44.2",
+    # PostgreSQL driver for Python ("binary" = ships a precompiled build).
     "psycopg[binary]>=3.3.5",
+    # Loads the values from the .env file into environment variables.
     "python-dotenv>=1.2.3",
+    # Reads the YAML files in config/ and evals/.
     "pyyaml>=6.0.3",
+    # Parses SQL so the guardrails can check it before it runs.
     "sqlglot>=30.18.0",
+    # The web server that runs the FastAPI app.
     "uvicorn>=0.53.0",
 ]
 
+# Extra libraries needed only by developers (not installed on Azure).
 [dependency-groups]
 dev = [
+    # Test runner: run "uv run pytest" to execute the tests/ folder.
     "pytest>=9.1.1",
+    # Linter / formatter: run "uv run ruff check ." to find style problems.
     "ruff>=0.16.8",
 ]
 
+# Settings for pytest.
 [tool.pytest.ini_options]
+# Put the project root on the import path so tests can "import agent", "import api", ...
 pythonpath = ["."]
+# Look for tests only inside the tests/ folder.
 testpaths = ["tests"]
 
+# Settings for ruff.
 [tool.ruff]
+# Allow lines up to 100 characters long before ruff complains.
 line-length = 100

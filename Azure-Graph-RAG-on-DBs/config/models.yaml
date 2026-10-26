@@ -12,12 +12,19 @@
 #
 # "small" points at gpt-5.1 for now, because East US had no regional quota for
 # gpt-4.1-mini. When that quota arrives, change "small" to its deployment name.
+#
+# HOW IT IS READ: metadata/llm.py -> _models(). The values must be the
+# DEPLOYMENT names you created in Azure AI Foundry (not just model names).
 # =============================================================================
 
+# Chat (text-generating) models, by role.
 chat:
+  # Deployment used for quick, cheap steps.
   small: gpt-5.1
+  # Deployment used where quality matters most.
   strong: gpt-5.1
 
+# Deployment used to turn text into vectors (embeddings).
 embedding: text-embedding-3-small
 
 # How much the reasoning models "think" before answering. "low" is faster and

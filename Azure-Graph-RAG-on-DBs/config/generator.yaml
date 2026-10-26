@@ -3,6 +3,7 @@
 # =============================================================================
 #
 # Settings for the synthetic data generator (dataplane/generator/run.py).
+# It is read by dataplane/generator/common.py -> load_settings().
 #
 # WHAT IS DELIBERATELY NOT IN THIS FILE
 # -------------------------------------
@@ -27,5 +28,7 @@ scale: 0.2
 
 # The 5-year window the data covers. Must match the 60 monthly pieces of
 # the transactions table created in dataplane/schema/04_transactions.sql.
+# First day of data (format YYYY-MM-DD, kept in quotes so it stays text).
 start_date: "2021-09-01"
+# Last day of data.
 end_date: "2026-08-31"

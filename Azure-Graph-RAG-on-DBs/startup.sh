@@ -1,4 +1,5 @@
 #!/bin/bash
+# (The line above is the "shebang": it tells the computer to run this file with bash.)
 # =============================================================================
 # startup.sh
 # =============================================================================
@@ -19,4 +20,10 @@
 # PORT is set by App Service; 8000 is its default for Python apps.
 # =============================================================================
 
+# Start the web server:
+#   python -m uvicorn      -> run the uvicorn web server
+#   api.main:app           -> the FastAPI object named "app" inside api/main.py
+#   --host 0.0.0.0         -> listen on every network card (needed inside Azure)
+#   --port "${PORT:-8000}" -> use the PORT variable Azure gives us, or 8000 if it is empty
+#   --workers 1            -> exactly one process (see "ONE WORKER" above)
 python -m uvicorn api.main:app --host 0.0.0.0 --port "${PORT:-8000}" --workers 1

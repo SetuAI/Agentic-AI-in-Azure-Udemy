@@ -4,6 +4,10 @@
 #
 # Settings for the Stage 6 agent (agent/graph.py). Rules and limits only:
 # nothing here names a planted pattern or a hidden link.
+#
+# HOW IT IS READ: agent/context.py -> agent_config() loads this file with
+# yaml.safe_load, so every "key: value" below becomes a Python dict entry.
+# Lines starting with "#" are comments and are ignored.
 # =============================================================================
 
 # How many times the agent may rewrite SQL after a failed check or a failed
@@ -11,6 +15,7 @@
 max_sql_retries: 2
 
 # Protecting the database (tradeoff 6).
+# "run" groups the three safety limits applied every time a query is executed.
 run:
   timeout_ms: 15000        # cancel any query running longer than 15 seconds
   row_cap: 5000            # never fetch more than this many rows back
@@ -19,6 +24,7 @@ run:
 # Tables whose queries MUST filter on a date column, because they are large
 # and split by month. Without a date filter, Postgres reads every month.
 date_filter_required:
+  # Format is  table_name: date_column  -> any query on "transactions" must filter "txn_date".
   transactions: txn_date
 
 # How many tables vector search suggests, before entity and metric tables are added.
@@ -35,17 +41,29 @@ summary_rows: 20
 entity_min_score: 0.5
 
 # Which table and column each kind of name is looked up in.
+# Format is  kind_of_name: [table, column]. Example: when the user mentions a
+# scheme, its exact spelling is looked up in table "schemes", column "scheme_name".
 entity_columns:
+  # Mutual fund scheme names, e.g. "Sahyadri Credit Risk Fund".
   scheme: [schemes, scheme_name]
+  # Companies that issue bonds/shares.
   issuer: [issuers, issuer_name]
+  # Business groups that several issuers belong to.
   group: [issuer_groups, group_name]
+  # Industry sectors, e.g. "Banking".
   sector: [sectors, sector_name]
+  # Distributors (agents who sell funds). Note the short legacy column name dist_nm.
   distributor: [distributors, dist_nm]
+  # Fund manager names.
   manager: [fund_managers, manager_name]
+  # Scheme categories, e.g. "Credit Risk Fund".
   category: [scheme_categories, category_name]
+  # Investor cities.
   city: [investors, city]
+  # Benchmark index names a scheme is compared against.
   benchmark: [benchmarks, benchmark_name]
 
+# Settings for Azure AI Content Safety Prompt Shields (guardrails/prompt_shields.py).
 prompt_shields:
   # true: if Content Safety cannot be reached, let the question through and
   # record that the check was skipped. Keeps a demo running through a

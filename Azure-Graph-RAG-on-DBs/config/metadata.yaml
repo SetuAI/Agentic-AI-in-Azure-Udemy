@@ -7,8 +7,11 @@
 #
 # Contains rules only. It must never contain answers about which links are
 # hidden or which patterns are planted: those live in evals/answer_key/.
+#
+# HOW IT IS READ: metadata/build.py -> load_yaml("metadata.yaml").
 # =============================================================================
 
+# Rules for finding join links between tables that the schema does not declare.
 link_discovery:
   # A proposed link needs at least this share of the column's distinct values
   # to exist in the column it points to. 0.95 allows a few dirty values.
@@ -18,6 +21,7 @@ link_discovery:
   # coincidence too easily.
   min_distinct_for_value_match: 10
 
+# Rules for the LLM-written descriptions ("notes") of every table and column.
 notes:
   # How many example values to show the LLM per column (never for PII columns).
   sample_values: 5
@@ -25,6 +29,7 @@ notes:
   # the deployment's tokens-per-minute limit.
   parallel_calls: 4
 
+# Rules for turning text into vectors (embeddings) stored in pgvector.
 embedding:
   # Text columns with fewer distinct values than this have their values
   # embedded, so names in questions ("Sahyadri credit fund") can be matched
@@ -32,9 +37,12 @@ embedding:
   max_distinct_values: 10000
   # Columns whose names match these patterns hold codes or identifiers, not
   # names people type in questions. They are never embedded.
+  # (These are regular expressions: "$" means "ends with", "^" means "starts with".)
   exclude_column_patterns: ["_code$", "_cd$", "^isin$", "_no$", "_number$", "_masked$", "_arn$"]
+  # How many texts are sent to the embedding model in one API call.
   batch_size: 100
 
+# Settings for the schema graph (tables = nodes, joins = edges) built with Apache AGE.
 graph:
   # The AGE graph's name inside agent_meta.
   name: schema_graph

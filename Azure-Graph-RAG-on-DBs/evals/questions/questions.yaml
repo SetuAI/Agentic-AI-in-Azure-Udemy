@@ -35,6 +35,10 @@
 # whose "right answer" was copied from the output can never fail.
 # =============================================================================
 
+# NOTE FOR FRESHERS: evals/run_eval.py (mentioned above) belongs to Stage 9 and
+# is not in this folder yet, so nothing reads this file today. It is the
+# ready-made question set for that evaluation step.
+# Every item below starts with "- id:" and uses the fields explained above.
 questions:
 
   # ---------------------------------------------------------------------------

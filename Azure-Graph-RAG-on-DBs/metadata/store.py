@@ -26,8 +26,12 @@ meta_edges is the SOURCE OF TRUTH for links. The AGE graph is a copy built
 from it, so it can be deleted and rebuilt at any time without losing anything.
 """
 
+# psycopg: the PostgreSQL driver.
 import psycopg
 
+# The SQL that creates the four agent_meta tables and the vector index. It is a
+# Python string (between the triple quotes), run by ensure_schema() below.
+# IF NOT EXISTS: running it again changes nothing if the tables already exist.
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta_tables (
     table_name      text PRIMARY KEY,
@@ -96,11 +100,15 @@ def connect(agent_db_url: str) -> psycopg.Connection:
     short names. public comes FIRST, so the tables we create land in public
     and not inside AGE's own schema.
     """
+    # autocommit=True: every statement is saved immediately (no explicit commit needed).
     conn = psycopg.connect(agent_db_url, autocommit=True)
+    # Look for names in public first, then in AGE's ag_catalog.
     conn.execute("SET search_path = public, ag_catalog")
+    # Hand back the open connection.
     return conn
 
 
 def ensure_schema(conn: psycopg.Connection) -> None:
     """Create the four tables and the index if they do not exist yet. Safe to run repeatedly."""
+    # Run all the CREATE statements in one go.
     conn.execute(SCHEMA_SQL)

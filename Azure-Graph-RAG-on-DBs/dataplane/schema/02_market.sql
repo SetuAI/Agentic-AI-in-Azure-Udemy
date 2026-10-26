@@ -33,6 +33,7 @@
 -- -----------------------------------------------------------------------------
 -- CLEAN START (same reasoning as file 01)
 -- -----------------------------------------------------------------------------
+-- Delete these 6 tables if they already exist (CASCADE also drops links pointing at them).
 DROP TABLE IF EXISTS
     portfolio_holdings,
     credit_rating_history,
@@ -46,9 +47,13 @@ CASCADE;
 -- =============================================================================
 -- 1. sectors                                                   (about 25 rows)
 -- =============================================================================
+-- The industry a company works in, e.g. Banking or Power.
 CREATE TABLE sectors (
+    -- The sector's own ID number (unique, never empty).
     sector_id       integer PRIMARY KEY,
+    -- A short readable code for the sector; no two sectors may share one.
     sector_code     text NOT NULL UNIQUE,
+    -- The sector's full name, e.g. 'Banking'.
     sector_name     text NOT NULL UNIQUE
 );
 
@@ -62,7 +67,9 @@ CREATE TABLE sectors (
 -- PLANTED PATTERN 2 lives here: one scheme has an unusually high share of
 -- its money in companies from a single group.
 CREATE TABLE issuer_groups (
+    -- The business group's own ID number.
     group_id        integer PRIMARY KEY,
+    -- The group's name. Also embedded in Stage 5 so questions can name it loosely.
     group_name      text NOT NULL UNIQUE
 );
 
@@ -72,6 +79,7 @@ CREATE TABLE issuer_groups (
 -- =============================================================================
 -- Companies, banks and governments that issue securities.
 CREATE TABLE issuers (
+    -- The issuer's own ID number.
     issuer_id       integer PRIMARY KEY,
 
     -- Names are embedded into pgvector in Stage 5, so a question can name
@@ -81,8 +89,11 @@ CREATE TABLE issuers (
     -- Every issuer has a sector. Not every issuer belongs to a group, so
     -- group_id may be empty (NULL).
     group_id        integer REFERENCES issuer_groups (group_id),
+    -- Which sector this issuer is in (foreign key, must be filled in).
     sector_id       integer NOT NULL REFERENCES sectors (sector_id),
 
+    -- What kind of issuer this is. PSU = Public Sector Undertaking (government-owned
+    -- company); NBFC = Non-Banking Financial Company.
     issuer_type     text NOT NULL
         CHECK (issuer_type IN ('Corporate', 'PSU', 'Bank', 'NBFC', 'Government', 'Other'))
 );
@@ -93,6 +104,7 @@ CREATE TABLE issuers (
 -- =============================================================================
 -- Each share, bond or money-market paper a scheme can hold.
 CREATE TABLE securities (
+    -- The security's own ID number.
     security_id     integer PRIMARY KEY,
 
     -- The code used by other systems to refer to this security.
@@ -100,10 +112,13 @@ CREATE TABLE securities (
     -- security_id (see HIDDEN LINK 2 below).
     security_code   text NOT NULL UNIQUE,
 
+    -- The 12-character international code for this security.
     isin            text NOT NULL UNIQUE CHECK (length(isin) = 12),
 
+    -- Which company/government issued it (foreign key to issuers).
     issuer_id       integer NOT NULL REFERENCES issuers (issuer_id),
 
+    -- What kind of security it is (share, bond, money-market paper, ...).
     security_type   text NOT NULL
         CHECK (security_type IN ('Equity', 'Corporate Bond', 'Commercial Paper',
                                  'Certificate of Deposit', 'Government Security',
@@ -147,10 +162,13 @@ CREATE TABLE securities (
 -- PLANTED PATTERN 1 lives here: one bond is downgraded, and in the weeks
 -- after that date, redemptions spike in the schemes that hold it.
 CREATE TABLE credit_rating_history (
+    -- rtg_id = the rating record's own ID number.
     rtg_id      integer PRIMARY KEY,
 
+    -- sec_cd = which security was rated (same values as securities.security_code).
     sec_cd      text NOT NULL,               -- hidden link: no REFERENCES on purpose
 
+    -- rtg_agcy = the rating agency that gave the rating.
     rtg_agcy    text NOT NULL,
 
     -- Standard long-term rating scale, best (AAA) to default (D).
@@ -158,10 +176,13 @@ CREATE TABLE credit_rating_history (
         CHECK (rtg IN ('AAA', 'AA+', 'AA', 'AA-', 'A+', 'A', 'A-',
                        'BBB+', 'BBB', 'BBB-', 'BB+', 'BB', 'BB-', 'B', 'C', 'D')),
 
+    -- rtg_dt = the date the rating was given.
     rtg_dt      date NOT NULL,
 
+    -- outlk = the agency's outlook (may be empty).
     outlk       text CHECK (outlk IN ('Stable', 'Positive', 'Negative', 'Watch')),
 
+    -- upd_ts = when the row was last updated; now() fills in the current time.
     upd_ts      timestamptz NOT NULL DEFAULT now()
 );
 
@@ -179,7 +200,9 @@ CREATE TABLE credit_rating_history (
 -- PLANTED PATTERN 6 lives here: one scheme has more than 10% of its money in
 -- a single issuer, which breaks the usual regulatory limit.
 CREATE TABLE portfolio_holdings (
+    -- Which scheme holds the security (foreign key to schemes).
     scheme_id       integer NOT NULL REFERENCES schemes (scheme_id),
+    -- Which security is held (foreign key to securities).
     security_id     integer NOT NULL REFERENCES securities (security_id),
 
     -- Always a month end, like scheme_aum_monthly.

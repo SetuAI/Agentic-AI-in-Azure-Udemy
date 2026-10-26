@@ -1,0 +1,7 @@
+# =============================================================================
+# config/memory.yaml  -  PLACEHOLDER (intentionally empty for now)
+# =============================================================================
+# This file is reserved for Stage 8 (long-term memory): settings for storing
+# conversation history in Postgres instead of the server's memory. No code
+# reads it yet, so there is nothing to fill in. Leave it as it is.
+# =============================================================================

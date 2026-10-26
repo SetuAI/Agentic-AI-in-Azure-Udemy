@@ -29,18 +29,30 @@ Patterns 1 (redemption spike after the downgrade) and 5 (one distributor's
 high rejection rate) are planted here.
 """
 
+# numpy: random numbers and fast arrays.
 import numpy as np
+
+# polars: builds and joins the tables (DataFrames).
 import polars as pl
 
+# The planted-pattern values (P.P1_..., P.P5_...).
 from dataplane.generator import patterns as P
+
+# Shared date helpers from common.py.
 from dataplane.generator.common import Settings, random_dates, roll_forward
+
+# Scheme lookups from fund_house.py.
 from dataplane.generator.fund_house import SCHEME_ID, SCHEMES, asset_class_of
 
+# Transaction types that bring money into a scheme.
 MONEY_IN = ["Purchase", "SIP", "Switch In"]
+# Transaction types that take money out of a scheme.
 MONEY_OUT = ["Redemption", "Switch Out"]
 
+# Possible reasons a money-in transaction is rejected.
 REJECT_REASONS_IN = ["Insufficient funds in bank account", "Mandate not registered",
                      "KYC not compliant", "Payment not received", "Bank account mismatch"]
+# Possible reasons a money-out transaction is rejected.
 REJECT_REASONS_OUT = ["Signature mismatch", "KYC not compliant", "Bank account mismatch"]
 
 
@@ -52,21 +64,30 @@ def _lumpsum_amounts(rng, scheme_ids: np.ndarray) -> np.ndarray:
     large, as in real investing. Debt funds attract bigger cheques than
     equity funds. Rounded to the nearest Rs 100, between Rs 1,000 and Rs 50 lakh.
     """
+    # True for every amount whose scheme is a debt scheme.
     is_debt = np.array([asset_class_of(SCHEMES[s - 1][0]) == "Debt" for s in scheme_ids])
+    # A typical cheque: Rs 1 lakh for debt, Rs 20,000 for equity/hybrid.
     typical = np.where(is_debt, 100_000, 20_000)
+    # Multiply by a random log-normal factor (usually 0.4x-2.7x, sometimes much more).
     amounts = typical * np.exp(rng.normal(0, 1.0, len(scheme_ids)))
+    # round(..., -2) rounds to the nearest 100; clip keeps it between Rs 1,000 and Rs 50 lakh.
     return np.clip(np.round(amounts, -2), 1_000, 5_000_000)
 
 
+# The main function of this file; run.py calls it in step 4.
 def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFrame,
           nav_history: pl.DataFrame) -> pl.DataFrame:
     """Build and return the transactions table."""
+    # Short name for the shared random number generator.
     rng = settings.rng
+    # The last day of the data window.
     end = settings.end
 
+    # Take the folio columns out as numpy arrays (all in the same folio order).
     folio_ids = folio_facts["folio_id"].to_numpy()
     opened = folio_facts["opened_date"].to_numpy().astype("datetime64[D]")
     scheme_of_folio = folio_facts["scheme_id"].to_numpy()
+    # How many folios there are.
     n_folio = len(folio_ids)
 
     # =====================================================================
@@ -76,27 +97,36 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
     # ---- SIP payments ---------------------------------------------------
     # For each SIP, list its payment dates: first_pay, then every
     # step_months months, on the SIP day, until last_pay.
+    # The SIP schedule's columns as numpy arrays (one entry per SIP).
     first_pay = sip_schedule["first_pay"].to_numpy().astype("datetime64[D]")
     last_pay = sip_schedule["last_pay"].to_numpy().astype("datetime64[D]")
     step = sip_schedule["step_months"].to_numpy()
     sip_day = sip_schedule["sip_day"].to_numpy()
 
     # How many payments each SIP can make: whole steps between the months, plus one.
+    # Months between the first and the last possible payment.
     month_gap = (last_pay.astype("datetime64[M]") - first_pay.astype("datetime64[M]")).astype(int)
+    # "//" is whole-number division. Never below 0.
     n_payments = np.maximum(month_gap // step + 1, 0)
 
     # np.repeat makes one row per payment; k counts 0, 1, 2, ... within each SIP.
+    # row_of = which SIP each payment row belongs to.
     row_of = np.repeat(np.arange(len(first_pay)), n_payments)
+    # k = the payment's number within its SIP (row number minus where that SIP's rows start).
     k = np.arange(len(row_of)) - np.repeat(np.cumsum(n_payments) - n_payments, n_payments)
+    # The month of each payment: first month + k steps.
     pay_month = first_pay[row_of].astype("datetime64[M]") + (k * step[row_of]).astype("timedelta64[M]")
+    # The exact day: the SIP day of that month, moved off weekends.
     pay_date = roll_forward(pay_month.astype("datetime64[D]") + (sip_day[row_of] - 1).astype("timedelta64[D]"))
     # Drop payments that roll past the SIP's last date or the window end.
     ok = (pay_date <= last_pay[row_of]) & (pay_date <= end)
 
+    # One row per SIP payment that survived the filter ("[ok]" keeps only those).
     sip_rows = pl.DataFrame(
         {
             "folio_id": sip_schedule["folio_id"].to_numpy()[row_of][ok],
             "txn_date": pay_date[ok],
+            # A single value fills the whole column.
             "txn_type": "SIP",
             "amount": sip_schedule["sip_amount"].to_numpy()[row_of][ok],
         }
@@ -105,8 +135,11 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
     # ---- First purchase when a folio opens -------------------------------
     # Every folio without a SIP starts with a lump sum. Folios with a SIP
     # start with one only sometimes (30%).
+    # True for folios that have a SIP.
     has_sip = np.isin(folio_ids, sip_schedule["folio_id"].to_numpy())
+    # True for folios that make a first lump-sum purchase.
     buys_first = np.where(has_sip, rng.random(n_folio) < 0.30, True)
+    # One Purchase row per such folio, dated the day the folio opened.
     first_buy = pl.DataFrame(
         {
             "folio_id": folio_ids[buys_first],
@@ -117,10 +150,14 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
     )
 
     # ---- Later purchases and switch-ins ----------------------------------
+    # Helper used for later purchases (1.2 per folio on average) and switch-ins (0.1).
     def extra_rows(mean_per_folio: float, txn_type: str) -> pl.DataFrame:
         """A random number of extra rows per folio, on random dates after it opened."""
+        # A random count of extra rows for every folio.
         counts = rng.poisson(mean_per_folio, n_folio)
+        # The folio position of each extra row.
         who = np.repeat(np.arange(n_folio), counts)
+        # Each extra row gets a random business day between the opening date and the end.
         return pl.DataFrame(
             {
                 "folio_id": folio_ids[who],
@@ -130,12 +167,15 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
             }
         )
 
+    # Stack all four kinds of money-in rows into one table.
     money_in = pl.concat([sip_rows, first_buy, extra_rows(1.2, "Purchase"), extra_rows(0.1, "Switch In")])
 
     # Attach each folio's plan, and the plan's NAV on the transaction date.
     # Every date is a business day on or after the scheme's first NAV, so
     # the NAV always exists.
+    # Rename nav_date so it can be joined on txn_date.
     nav = nav_history.rename({"nav_date": "txn_date"})
+    # Add plan_id and arn_code from the folio, then the NAV for (plan, date), then units.
     money_in = (
         money_in.join(folio_facts.select("folio_id", "plan_id", "arn_code"), on="folio_id")
         .join(nav, on=["plan_id", "txn_date"], how="inner")
@@ -146,18 +186,25 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
     # ---- Rejections (money in) -------------------------------------------
     # PATTERN 5: the chosen distributor's transactions are rejected about
     # 17% of the time; everyone else's about 2%.
+    # Used for both money in and money out.
     def mark_rejections(frame: pl.DataFrame, reasons: list[str]) -> pl.DataFrame:
         """Add txn_status and rejection_reason columns to a batch of rows."""
+        # True for rows sold by the pattern-5 distributor (Direct rows have no ARN -> False).
         is_p5 = (frame["arn_code"] == P.P5_ARN).fill_null(False).to_numpy()
+        # The rejection chance of each row: 17% or 2%.
         rate = np.where(is_p5, P.P5_REJECTION_RATE, P.NORMAL_REJECTION_RATE)
+        # Roll the dice for every row.
         rejected = rng.random(len(frame)) < rate
+        # A random reason for every row (only used where rejected).
         reason = rng.choice(reasons, len(frame))
+        # Add the two new columns.
         return frame.with_columns(
             pl.Series("txn_status", np.where(rejected, "Rejected", "Completed")),
             # A reason only where rejected; None (empty) everywhere else.
             pl.Series("rejection_reason", [r if x else None for r, x in zip(reason, rejected)], dtype=pl.Utf8),
         )
 
+    # Apply rejections to the money-in rows.
     money_in = mark_rejections(money_in, REJECT_REASONS_IN)
 
     # =====================================================================
@@ -165,18 +212,25 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
     # =====================================================================
     # Each folio makes 0, 1 or 2 redemptions and sometimes a switch-out,
     # on random dates at least 30 days after it opened.
+    # A folio can withdraw 30 days after opening at the earliest.
     earliest_out = opened + np.timedelta64(30, "D")
+    # Folios opened too late cannot withdraw.
     can_redeem = earliest_out < end
+    # Redemptions per folio: 0 (45%), 1 (40%), 2 (15%).
     n_redeem = np.where(can_redeem, rng.choice([0, 1, 2], n_folio, p=[0.45, 0.40, 0.15]), 0)
+    # Switch-outs per folio: 1 for 8% of folios, else 0.
     n_switch = np.where(can_redeem, (rng.random(n_folio) < 0.08).astype(int), 0)
 
+    # Folio position of each redemption ...
     who_r = np.repeat(np.arange(n_folio), n_redeem)
+    # ... and of each switch-out.
     who_s = np.repeat(np.arange(n_folio), n_switch)
     # Fraction of current holdings taken out: 30% of redemptions take
     # everything; the rest take 10% to 60%. Switch-outs take 20% to 80%.
     frac_r = np.where(rng.random(len(who_r)) < 0.30, 1.0, rng.uniform(0.10, 0.60, len(who_r)))
     frac_s = rng.uniform(0.20, 0.80, len(who_s))
 
+    # Two tables of planned withdrawals; "frac" is the share of holdings to take.
     out_parts = [
         pl.DataFrame({"folio_id": folio_ids[who_r],
                       "txn_date": random_dates(settings, earliest_out[who_r], np.full(len(who_r), end)),
@@ -188,9 +242,13 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
 
     # PATTERN 1: after the bond downgrade, a share of folios in the schemes
     # holding it redeem 40-100% of their units within about four weeks.
+    # For each of the two schemes that held the downgraded bond:
     for scheme_name, (_before, _after, share, _drop) in P.P1_HOLDERS.items():
+        # folios in that scheme that existed before the downgrade ...
         in_scheme = (scheme_of_folio == SCHEME_ID[scheme_name]) & (opened < P.P1_DOWNGRADE_DATE)
+        # ... of which a random "share" (35% / 15%) will redeem.
         idx = np.where(in_scheme & (rng.random(n_folio) < share))[0]
+        # Their redemptions fall between the downgrade date and P1_SPIKE_END.
         out_parts.append(pl.DataFrame({
             "folio_id": folio_ids[idx],
             "txn_date": random_dates(settings, np.full(len(idx), P.P1_DOWNGRADE_DATE), np.full(len(idx), P.P1_SPIKE_END)),
@@ -198,6 +256,7 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
             "frac": rng.uniform(0.40, 1.0, len(idx)),
         }))
 
+    # Stack all planned withdrawals, add plan/ARN and NAV, and number them per folio.
     money_out = (
         pl.concat(out_parts)
         .join(folio_facts.select("folio_id", "plan_id", "arn_code"), on="folio_id")
@@ -208,6 +267,7 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
     )
 
     # Running total of units bought (completed only) per folio, by date.
+    # completed purchases only -> total units per folio per day -> running total -> sorted by date.
     bought = (
         money_in.filter(pl.col("txn_status") == "Completed")
         .group_by("folio_id", "txn_date").agg(pl.col("units").sum())
@@ -220,10 +280,14 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
     # Handle withdrawals one "rank" at a time: first withdrawals of every
     # folio, then second withdrawals, and so on. Each needs to know what
     # earlier withdrawals already took out.
+    # Units already withdrawn per folio; starts as an empty table.
     taken_so_far = pl.DataFrame({"folio_id": [], "units_taken": []},
                                 schema={"folio_id": pl.Int64, "units_taken": pl.Float64})
+    # Finished batches of withdrawal rows.
     done = []
+    # r = 1, 2, 3, ... up to the highest rank ("or 0" handles an empty table).
     for r in range(1, int(money_out["rank"].max() or 0) + 1):
+        # All withdrawals with rank r, with how many units the folio holds on that date.
         batch = (
             money_out.filter(pl.col("rank") == r)
             .sort("txn_date")
@@ -233,6 +297,7 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
             # by="folio_id" polars cannot confirm that itself, hence
             # check_sortedness=False.
             .join_asof(bought, on="txn_date", by="folio_id", strategy="backward", check_sortedness=False)
+            # Add what earlier withdrawals already took (left join keeps folios with none).
             .join(taken_so_far, on="folio_id", how="left")
             .with_columns(
                 (pl.col("units_bought").fill_null(0) - pl.col("units_taken").fill_null(0)).alias("held")
@@ -240,30 +305,40 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
             # Take the chosen share of what is held. floor (not round) so we
             # never take out a fraction of a unit more than is held.
             .with_columns(((pl.col("frac") * pl.col("held") * 1000).floor() / 1000).alias("units"))
+            # Drop withdrawals from folios that hold nothing.
             .filter(pl.col("units") > 0)
         )
+        # Some withdrawals are rejected too.
         batch = mark_rejections(batch, REJECT_REASONS_OUT)
+        # Keep the batch.
         done.append(batch)
 
         # Only completed withdrawals reduce what the folio holds.
         taken_now = batch.filter(pl.col("txn_status") == "Completed").group_by("folio_id").agg(pl.col("units").sum().alias("u"))
+        # Add this batch's units to the running "taken" totals (full join keeps folios from both sides).
         taken_so_far = (
             taken_so_far.join(taken_now, on="folio_id", how="full", coalesce=True)
             .with_columns((pl.col("units_taken").fill_null(0) + pl.col("u").fill_null(0)).alias("units_taken"))
             .select("folio_id", "units_taken")
         )
 
+    # Stack the batches; the rupee amount = units x NAV, to 2 decimals.
     money_out = pl.concat(done).with_columns((pl.col("units") * pl.col("nav")).round(2).alias("amount"))
 
     # =====================================================================
     # 3. COMBINE, NUMBER AND FINISH
     # =====================================================================
+    # The columns both halves share.
     columns = ["folio_id", "plan_id", "txn_date", "txn_type", "amount", "units", "nav",
                "txn_status", "rejection_reason", "arn_code"]
+    # Combine money in and money out; drop any zero-amount rows (the schema requires amount > 0).
     txns = pl.concat([money_in.select(columns), money_out.select(columns)]).filter(pl.col("amount") > 0)
+    # Sort by date, then number the rows 1, 2, 3, ... as transaction_id.
     txns = txns.sort("txn_date", "folio_id").with_row_index("transaction_id", offset=1)
 
+    # Total number of transactions.
     n = len(txns)
+    # True for rows that went through a distributor.
     has_arn = txns["arn_code"].is_not_null().to_numpy()
     # How the transaction came in: distributor-led, or the investor's own.
     channel = np.where(
@@ -272,9 +347,13 @@ def build(settings: Settings, folio_facts: pl.DataFrame, sip_schedule: pl.DataFr
         rng.choice(["Online", "Mobile App", "Branch"], n, p=[0.5, 0.4, 0.1]),
     )
     # A system time during office hours on the transaction date.
+    # A random second of the day between 9:00 and 18:00.
     seconds = rng.integers(9 * 3600, 18 * 3600, n)
+    # Turn seconds into "HH:MM:SS" text.
     times = [f"{h:02d}:{m:02d}:{s:02d}" for h, m, s in zip(seconds // 3600, (seconds % 3600) // 60, seconds % 60)]
 
+    # Finish: make transaction_id a normal integer, add channel and created_at
+    # (date + time + India's +05:30 time zone), and put the columns in the table's order.
     return txns.with_columns(
         pl.col("transaction_id").cast(pl.Int64),
         pl.Series("channel", channel),

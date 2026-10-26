@@ -27,10 +27,20 @@ With the Docker Postgres running, after running apply_schema.py:
     uv run pytest tests/test_stage1_schema.py -v
 """
 
+# NOTE FOR FRESHERS: "the Docker Postgres" above means, in this Azure version,
+# your Azure Database for PostgreSQL server (DATA_DB_URL in .env). Run:
+#     Windows (PowerShell):  uv run pytest tests/test_stage1_schema.py -v
+#     Mac / Linux:           uv run pytest tests/test_stage1_schema.py -v
+# os: reads DATA_DB_URL.
 import os
 
+# psycopg: the PostgreSQL driver.
 import psycopg
+
+# pytest: the test runner (fixtures, parametrize).
 import pytest
+
+# load_dotenv: copies .env values into environment variables.
 from dotenv import load_dotenv
 
 # Read DATA_DB_URL from .env before any test runs.
@@ -46,6 +56,7 @@ load_dotenv()
 # would simply agree with the mistake.
 EXPECTED_TABLES = {
     # File 01: fund house (9)
+    # (file 01 tables continue on the next lines)
     "scheme_categories", "benchmarks", "benchmark_values", "schemes",
     "scheme_plans", "fund_managers", "scheme_manager_assignments",
     "nav_history", "scheme_aum_monthly",
@@ -61,8 +72,11 @@ EXPECTED_TABLES = {
 # The 3 hidden links, as (table, column). Must match
 # evals/answer_key/hidden_links.yaml.
 HIDDEN_LINK_COLUMNS = [
+    # hidden link 1 -> schemes.scheme_id
     ("scheme_aum_monthly", "scheme_id"),
+    # hidden link 2 -> securities.security_code
     ("credit_rating_history", "sec_cd"),
+    # hidden link 3 -> distributors.arn_no
     ("transactions", "arn_code"),
 ]
 
@@ -70,6 +84,7 @@ HIDDEN_LINK_COLUMNS = [
 # (schemes -> portfolio_holdings -> securities -> issuers).
 # Format: (from_table, from_column, to_table).
 DECLARED_LINKS = [
+    # Each entry: (table, column, the table it must point to).
     ("portfolio_holdings", "scheme_id", "schemes"),
     ("portfolio_holdings", "security_id", "securities"),
     ("securities", "issuer_id", "issuers"),
@@ -194,4 +209,5 @@ def test_declared_link_exists(conn, from_table, from_column, to_table):
         (from_table, from_column, to_table),
     ).fetchone()[0]
 
+    # Exactly one foreign key must exist; the text after the comma is shown if it fails.
     assert count == 1, f"{from_table}.{from_column} must point to {to_table}"

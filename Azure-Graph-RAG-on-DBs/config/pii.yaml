@@ -12,8 +12,12 @@
 # knows the column exists and can, for example, count rows with an email.
 #
 # On the client's database, their data protection team owns this list.
+# HOW IT IS READ: metadata/build.py -> pii_columns().
 # =============================================================================
 
+# Format is  table_name: [column, column, ...]
 pii_columns:
+  # Investor identity: PAN (tax ID), name, email, phone and birth date.
   investors: [pan, full_name, email, mobile, date_of_birth]
+  # The (masked) bank account number linked to a folio.
   folios: [bank_account_masked]

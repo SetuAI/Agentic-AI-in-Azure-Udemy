@@ -29,22 +29,32 @@ If the connection string is not set, nothing is sent, and the spans cost
 nothing: the app runs exactly the same, just without Azure monitoring.
 """
 
+# os: reads and sets environment variables.
 import os
 
+# load_dotenv: copies .env values into environment variables.
 from dotenv import load_dotenv
 
 
+# Returns True if monitoring was switched on, False if skipped.
 def setup() -> bool:
+    # Make sure .env has been read.
     load_dotenv()
+    # No connection string (empty or missing): skip monitoring.
     if not os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING"):
         print("Application Insights: not configured, skipping")
+        # Nothing was set up.
         return False
+    # Imported here, not at the top, so it only loads when monitoring is on.
     from azure.monitor.opentelemetry import configure_azure_monitor
     # The service name is how this app is labelled in Application Insights.
     os.environ.setdefault("OTEL_SERVICE_NAME", "fundgraph-api")
+    # Connect OpenTelemetry to Application Insights (reads the connection string itself).
     configure_azure_monitor()
     # Must run before any database connection is opened: it wraps psycopg.connect.
     from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
+    # From now on every psycopg query is recorded as a dependency.
     PsycopgInstrumentor().instrument()
     print("Application Insights: sending traces")
+    # Monitoring is on.
     return True

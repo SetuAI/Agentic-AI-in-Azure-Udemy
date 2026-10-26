@@ -1,8 +1,24 @@
+# =============================================================================
+# .gitignore
+# =============================================================================
+# Every line below is a file or folder name that git must NEVER commit.
+# Lines starting with "#" (like this one) are comments and are ignored by git.
+# =============================================================================
+
+# Your real secrets (database passwords, API keys). Copy .env.example to .env
+# and fill it in locally - it must never be pushed to GitHub.
 .env
+# The Python virtual environment created by "uv sync" (thousands of library files).
 .venv/
+# Compiled Python bytecode that Python creates automatically when it runs code.
 __pycache__/
+# Cache folder pytest creates to remember which tests failed last time.
 .pytest_cache/
+# Cache folder the "ruff" linter creates to speed up repeat runs.
 .ruff_cache/
+# Hidden folder-settings file that macOS Finder drops into every folder.
 .DS_Store
+# Generated synthetic data (Parquet files) - rebuilt by dataplane/generator/run.py.
 data/
+# Any Parquet data file anywhere in the project (large, regenerable files).
 *.parquet

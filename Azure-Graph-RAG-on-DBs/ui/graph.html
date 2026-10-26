@@ -23,60 +23,94 @@
     the picture drifting. Repeating that a few hundred times settles into a
     picture where connected tables sit near each other.
 -->
+<!-- HOW TO OPEN IT: start the app (uv run uvicorn api.main:app --port 8000) and go to http://localhost:8000/graph -->
+<!-- The html element wraps the whole page; lang="en" tells browsers and screen readers it is English. -->
 <html lang="en">
+<!-- The head holds settings and styles; nothing in it is shown directly on the page. -->
 <head>
+<!-- Use UTF-8 so symbols like · and ← display correctly. -->
 <meta charset="utf-8">
+<!-- Make the page fit phone screens too. -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- The text shown on the browser tab. -->
 <title>FundGraph · Schema graph</title>
+<!-- The style block below holds the CSS: how every part of the page looks. -->
 <style>
+  /* Colour variables used below as var(--name): text, grey text, borders, brand blue, orange accent, page background. */
   :root { --ink: #14202e; --muted: #5b6b7d; --line: #dde3ea; --brand: #0b4f8a; --accent: #e8792b; --bg: #f4f6f9; }
+  /* Widths include padding and border (easier sizing). */
   * { box-sizing: border-box; }
+  /* The page fills the whole window with no outer margin. */
   html, body { height: 100%; margin: 0; }
+  /* Two rows: the header (its natural height) and the rest of the window (1fr). */
   body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg);
          color: var(--ink); display: grid; grid-template-rows: auto 1fr; }
+  /* The dark-blue top bar; its items sit in one row. */
   header { background: linear-gradient(120deg, #0b2f52, #0b4f8a); color: #fff; padding: 14px 24px;
            display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
   header h1 { margin: 0; font-size: 18px; font-weight: 650; }
   header .stats { opacity: .85; font-size: 13px; }
+  /* An empty element that grows to push the buttons to the right. */
   header .spacer { flex: 1; }
+  /* Buttons and the link in the header look like soft pills. */
   header button, header a { font: inherit; font-size: 13px; color: #fff; background: rgba(255,255,255,.14);
                             border: 0; padding: 7px 12px; border-radius: 8px; cursor: pointer; text-decoration: none; }
+  /* A switched-on button turns orange. */
   header button.on { background: var(--accent); }
+  /* The graph on the left, a 360-pixel side panel on the right. */
   .wrap { display: grid; grid-template-columns: 1fr 360px; min-height: 0; }
+  /* On narrow screens, stack the panel under the graph. */
   @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } }
+  /* The drawing area fills its cell. */
   svg { width: 100%; height: 100%; display: block; background: #fff; cursor: default; }
+  /* Table circles show a "grab" cursor because they can be dragged. */
   .node circle { stroke-width: 2; cursor: grab; }
+  /* Table names get a white outline so they stay readable over lines. */
   .node text { font-size: 12px; fill: var(--ink); pointer-events: none; paint-order: stroke;
                stroke: #fff; stroke-width: 4px; }
+  /* Faded-out items when another table is selected. */
   .dim { opacity: .15; }
+  /* The side panel and its headings/text. */
   aside { background: #fff; border-left: 1px solid var(--line); padding: 18px; overflow: auto; }
   aside h2 { margin: 0 0 4px; font-size: 17px; }
   aside .grain { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
   aside p { font-size: 13.5px; line-height: 1.5; }
   aside h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin: 18px 0 8px; }
+  /* One clickable join condition in the side panel. */
   .join { font-family: ui-monospace, Menlo, monospace; font-size: 12px; padding: 8px 10px; border: 1px solid var(--line);
           border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
   .join:hover { background: var(--bg); }
   .join .tag { font-family: -apple-system, sans-serif; font-size: 11px; float: right; color: var(--muted); }
+  /* Discovered (hidden) links are outlined in orange. */
   .join.hidden-link { border-color: var(--accent); }
   .join.hidden-link .tag { color: var(--accent); font-weight: 600; }
+  /* The legend and its small line samples (solid = declared, dashed = discovered). */
   .legend { font-size: 12.5px; color: var(--muted); line-height: 1.8; }
   .swatch { display: inline-block; width: 26px; vertical-align: middle; margin-right: 6px; border-top: 2px solid #9aabbd; }
   .swatch.dash { border-top: 2px dashed var(--accent); }
 </style>
 </head>
+<!-- Everything inside the body is what you see on the page. -->
 <body>
+<!-- Top bar: title, counts, and three buttons. -->
 <header>
   <h1>Schema graph</h1>
+  <!-- Replaced by the real counts once the data arrives (see the script at the bottom). -->
   <span class="stats" id="stats">Loading…</span>
   <span class="spacer"></span>
+  <!-- Toggles showing only the three discovered links. -->
   <button id="hiddenBtn" title="Show only links the pipeline discovered">Hidden links only</button>
+  <!-- Runs the layout again from a new random start. -->
   <button id="relayout">Re-arrange</button>
+  <!-- Link back to the main demo page. -->
   <a href="/">← Back to the demo</a>
 </header>
 
+<!-- Main area: the drawing (svg) and the side panel (aside). -->
 <div class="wrap">
+  <!-- The script draws the circles and lines into this empty SVG. -->
   <svg id="svg"></svg>
+  <!-- The side panel; its content is replaced when a table is clicked. -->
   <aside id="panel">
     <h2>Click a table</h2>
     <p>Every table joined to it lights up, and this panel lists how they join.</p>
@@ -89,11 +123,16 @@
   </aside>
 </div>
 
+<!-- The JavaScript that loads the data, lays out the graph and handles clicks. -->
 <script>
+// $("x") is a short way to find the element with id="x".
 const $ = id => document.getElementById(id);
+// The drawing area.
 const svg = $("svg");
+// esc() makes text safe to put inside HTML (so a name can never inject markup).
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+// The graph data from /schema-graph (empty until it loads).
 let data = { nodes: [], edges: [], tables: {} };
 let pos = {};             // table name -> {x, y}
 let selected = null;      // the clicked table, or null
@@ -105,7 +144,9 @@ const degree = name => data.edges.filter(e => e.from_table === name || e.to_tabl
 // ---------------------------------------------------------------------------
 // Layout: a small force simulation (see the comment at the top of the file)
 // ---------------------------------------------------------------------------
+// Work out a position for every table, then draw.
 function layout() {
+  // The drawing area's current width and height in pixels.
   const W = svg.clientWidth, H = svg.clientHeight;
   // Start from a circle with a little randomness, so each re-arrange differs.
   data.nodes.forEach((n, i) => {
@@ -113,27 +154,37 @@ function layout() {
     pos[n] = { x: W / 2 + (W / 3) * Math.cos(a) + Math.random() * 20,
                y: H / 2 + (H / 3) * Math.sin(a) + Math.random() * 20 };
   });
+  // Repeat the push/pull 400 times; positions settle a little more each time.
   for (let step = 0; step < 400; step++) {
+    // How far each table should move in this round.
     const move = {};
+    // Start every table at "no movement".
     data.nodes.forEach(n => (move[n] = { x: 0, y: 0 }));
     // Every pair pushes apart; the closer they are, the harder.
     for (const a of data.nodes) for (const b of data.nodes) {
+      // Handle each pair once (and skip a table paired with itself).
       if (a >= b) continue;
+      // Distance between the two tables, along x and y.
       const dx = pos[a].x - pos[b].x, dy = pos[a].y - pos[b].y;
+      // Squared distance (at least 100 to avoid huge pushes); push strength falls with distance.
       const d2 = Math.max(dx * dx + dy * dy, 100), f = 9000 / d2;
+      // The straight-line distance.
       const d = Math.sqrt(d2);
       move[a].x += (dx / d) * f; move[a].y += (dy / d) * f;
       move[b].x -= (dx / d) * f; move[b].y -= (dy / d) * f;
     }
     // Every link pulls its two tables towards a comfortable distance.
     for (const e of data.edges) {
+      // The two tables this link joins.
       const a = e.from_table, b = e.to_table;
       const dx = pos[b].x - pos[a].x, dy = pos[b].y - pos[a].y;
+      // Pull if further apart than 130 pixels, push if closer.
       const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1), f = (d - 130) * 0.04;
       move[a].x += (dx / d) * f; move[a].y += (dy / d) * f;
       move[b].x -= (dx / d) * f; move[b].y -= (dy / d) * f;
     }
     // A weak pull to the centre, and keep everything inside the picture.
+    // Moves get smaller as the rounds go on ("cooling"), so the picture settles.
     const cool = 1 - step / 400;
     for (const n of data.nodes) {
       move[n].x += (W / 2 - pos[n].x) * 0.01; move[n].y += (H / 2 - pos[n].y) * 0.01;
@@ -141,58 +192,82 @@ function layout() {
       pos[n].y = Math.min(H - 40, Math.max(40, pos[n].y + move[n].y * cool));
     }
   }
+  // Show the result.
   draw();
 }
 
 // ---------------------------------------------------------------------------
 // Drawing
 // ---------------------------------------------------------------------------
+// The selected table plus every table directly joined to it.
 function neighbours(name) {
+  // A Set holds each name once.
   const set = new Set([name]);
   data.edges.forEach(e => {
     if (e.from_table === name) set.add(e.to_table);
     if (e.to_table === name) set.add(e.from_table);
   });
+  // Return the set of names.
   return set;
 }
 
+// Redraw everything: build the SVG markup as text, then insert it in one go.
 function draw() {
+  // The selected table's neighbours (null if nothing is selected).
   const near = selected ? neighbours(selected) : null;
+  // All links, or only the discovered ones when "Hidden links only" is on.
   const visibleEdges = data.edges.filter(e => !hiddenOnly || e.source !== "declared");
+  // The SVG markup being built.
   let out = "";
 
+  // One <line> per link.
   for (const e of visibleEdges) {
+    // The positions of its two tables.
     const a = pos[e.from_table], b = pos[e.to_table];
+    // Does this link touch the selected table?
     const touches = selected && (e.from_table === selected || e.to_table === selected);
+    // Was it discovered rather than declared?
     const hidden = e.source !== "declared";
+    // Blue if it touches the selection, orange if discovered, grey otherwise.
     const colour = touches ? "#0b4f8a" : hidden ? "#e8792b" : "#b8c4d1";
+    // Line thickness, by the same rules.
     const width = touches ? 3.5 : hidden ? 2.5 : 1.4;
     out += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${colour}" stroke-width="${width}"
               ${hidden ? 'stroke-dasharray="7 5"' : ""} class="${selected && !touches ? "dim" : ""}">
               <title>${esc(e.from_table)}.${esc(e.from_column)} = ${esc(e.to_table)}.${esc(e.to_column)}  (${esc(e.source)})</title></line>`;
   }
 
+  // Which tables to show at full strength: all, or only those on a discovered link.
   const shownNodes = hiddenOnly
     ? new Set(visibleEdges.flatMap(e => [e.from_table, e.to_table])) : new Set(data.nodes);
+  // One circle + name per table. Circle radius grows with the number of links.
   for (const n of data.nodes) {
     const p = pos[n], r = 7 + degree(n) * 1.6;
+    // Is this the selected table, or one of its neighbours?
     const isSel = n === selected, isNear = near && near.has(n);
+    // Orange = selected, blue = neighbour, white = other.
     const fill = isSel ? "#e8792b" : isNear ? "#0b4f8a" : "#ffffff";
     const stroke = isSel ? "#e8792b" : isNear ? "#0b4f8a" : "#7f93a8";
+    // Fade tables that are not involved.
     const dim = (near && !isNear) || !shownNodes.has(n);
     out += `<g class="node ${dim ? "dim" : ""}" data-name="${esc(n)}">
               <circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${fill}" stroke="${stroke}"></circle>
               <text x="${p.x}" y="${p.y - r - 6}" text-anchor="middle">${esc(n)}</text></g>`;
   }
+  // Put all the markup into the SVG at once.
   svg.innerHTML = out;
 }
 
 // ---------------------------------------------------------------------------
 // Side panel for the selected table
 // ---------------------------------------------------------------------------
+// Fill the side panel with the clicked table's details and its joins.
 function showPanel(name) {
+  // This table's description, grain and row estimate ({} if missing).
   const t = data.tables[name] || {};
+  // Every link that touches this table.
   const joins = data.edges.filter(e => e.from_table === name || e.to_table === name);
+  // Row count formatted the Indian way (e.g. 6,83,159).
   const rows = t.rows != null ? Number(t.rows).toLocaleString("en-IN") + " rows (estimated)" : "";
   $("panel").innerHTML = `
     <h2>${esc(name)}</h2>
@@ -212,9 +287,12 @@ function showPanel(name) {
   $("panel").querySelectorAll("[data-go]").forEach(el => el.onclick = () => select(el.dataset.go));
 }
 
+// Select a table (or clear the selection when name is null).
 function select(name) {
+  // Remember it.
   selected = name;
   draw();
+  // Show its details, or the starting help text when cleared.
   if (name) showPanel(name);
   else $("panel").innerHTML = "<h2>Click a table</h2><p>Every table joined to it lights up, and this panel lists how they join.</p>";
 }
@@ -222,42 +300,53 @@ function select(name) {
 // ---------------------------------------------------------------------------
 // Mouse: click to select, drag to move
 // ---------------------------------------------------------------------------
+// dragging = the table being dragged (or null); moved = did the mouse move while pressed?
 let dragging = null, moved = false;
+// The mouse position inside the SVG.
 const point = ev => {
   const r = svg.getBoundingClientRect();
   return { x: ev.clientX - r.left, y: ev.clientY - r.top };
 };
+// Mouse pressed: if on a table, start dragging it.
 svg.addEventListener("mousedown", ev => {
   const g = ev.target.closest(".node");
   dragging = g ? g.dataset.name : null;
   moved = false;
 });
+// Mouse moved while dragging: move the table to the mouse and redraw.
 svg.addEventListener("mousemove", ev => {
   if (!dragging) return;
   moved = true;
   pos[dragging] = point(ev);
   draw();
 });
+// Mouse released: if it did not move, it was a click, so select (or clear).
 svg.addEventListener("mouseup", ev => {
   const g = ev.target.closest(".node");
   if (!moved) select(g ? g.dataset.name : null);   // a click, not a drag
   dragging = null;
 });
+// The Esc key clears the selection.
 document.addEventListener("keydown", ev => { if (ev.key === "Escape") select(null); });
 
+// "Hidden links only" button: flip the setting, colour the button, redraw.
 $("hiddenBtn").onclick = () => {
   hiddenOnly = !hiddenOnly;
   $("hiddenBtn").classList.toggle("on", hiddenOnly);
   draw();
 };
+// "Re-arrange" button: run the layout again.
 $("relayout").onclick = layout;
+// Re-arrange when the window size changes.
 window.addEventListener("resize", layout);
 
 // ---------------------------------------------------------------------------
 // Load
 // ---------------------------------------------------------------------------
+// Ask the API for the graph; when the JSON arrives, store it, show the counts and lay it out.
 fetch("/schema-graph").then(r => r.json()).then(g => {
   data = { nodes: g.nodes, edges: g.edges, tables: g.tables || {} };
+  // How many links were discovered rather than declared.
   const hidden = g.edges.filter(e => e.source !== "declared").length;
   $("stats").textContent = `${g.nodes.length} tables · ${g.edges.length} links · ${hidden} discovered by the pipeline`;
   layout();

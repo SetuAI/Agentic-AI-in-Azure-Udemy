@@ -36,6 +36,7 @@
 -- -----------------------------------------------------------------------------
 -- CLEAN START (same reasoning as file 01)
 -- -----------------------------------------------------------------------------
+-- Delete these 4 tables if they already exist (CASCADE also drops links pointing at them).
 DROP TABLE IF EXISTS
     sip_registrations,
     folios,
@@ -67,13 +68,20 @@ CASCADE;
 -- PLANTED PATTERN 5 lives here: one distributor's transactions are rejected
 -- far more often than everyone else's.
 CREATE TABLE distributors (
+    -- arn_no = the ARN; LIKE 'ARN-%' means it must start with "ARN-" (% = anything after).
     arn_no      text PRIMARY KEY CHECK (arn_no LIKE 'ARN-%'),
+    -- dist_nm = the distributor's name.
     dist_nm     text NOT NULL,
+    -- dist_typ = the kind of distributor (IFA = Independent Financial Advisor).
     dist_typ    text NOT NULL
         CHECK (dist_typ IN ('Bank', 'National Distributor', 'IFA', 'Online Platform')),
+    -- city_nm = the city the distributor is based in.
     city_nm     text NOT NULL,
+    -- st_cd = a 2-letter state code, e.g. 'MH'.
     st_cd       text NOT NULL CHECK (length(st_cd) = 2),
+    -- empnl_dt = the date the distributor was approved to sell.
     empnl_dt    date NOT NULL,
+    -- actv_flg = still active? char(1) = exactly one character, 'Y' or 'N'.
     actv_flg    char(1) NOT NULL DEFAULT 'Y' CHECK (actv_flg IN ('Y', 'N'))
 );
 
@@ -87,6 +95,7 @@ CREATE TABLE investors (
     -- integer stops at about 2.1 billion; bigint never runs out in practice.
     investor_id     bigint PRIMARY KEY,
 
+    -- Personal details (all PII). email, mobile and date_of_birth may be empty.
     pan             text NOT NULL UNIQUE,    -- PII, stored masked
     full_name       text NOT NULL,           -- PII
     email           text,                    -- PII
@@ -103,9 +112,11 @@ CREATE TABLE investors (
     -- investors in one city tier during the last year.
     city_tier       smallint NOT NULL CHECK (city_tier IN (1, 2, 3)),
 
+    -- KYC ("Know Your Customer") identity check: has the investor been verified?
     kyc_status      text NOT NULL
         CHECK (kyc_status IN ('Verified', 'Pending', 'Rejected')),
 
+    -- The day the investor first joined the fund house.
     onboarded_date  date NOT NULL
 );
 
@@ -116,16 +127,21 @@ CREATE TABLE investors (
 -- A folio is an investor's account in a scheme. One investor can hold several
 -- folios; every transaction happens inside a folio.
 CREATE TABLE folios (
+    -- The folio's own ID number (bigint because there are many folios).
     folio_id            bigint PRIMARY KEY,
 
     -- The account number printed on the investor's statement.
     folio_number        text NOT NULL UNIQUE,
 
+    -- Who owns the folio (foreign key to investors).
     investor_id         bigint NOT NULL REFERENCES investors (investor_id),
+    -- Which scheme the folio invests in (foreign key to schemes).
     scheme_id           integer NOT NULL REFERENCES schemes (scheme_id),
 
+    -- The day the folio was opened.
     opened_date         date NOT NULL,
 
+    -- How the account is owned: by one person, jointly, or by either holder.
     holding_mode        text NOT NULL
         CHECK (holding_mode IN ('Single', 'Joint', 'Anyone or Survivor')),
 
@@ -134,6 +150,7 @@ CREATE TABLE folios (
 
 -- The foreign keys above do not create indexes by themselves. These make
 -- "all folios of this investor" and "all folios in this scheme" fast.
+-- CREATE INDEX name ON table (column) builds a lookup list on that column.
 CREATE INDEX folios_investor_idx ON folios (investor_id);
 CREATE INDEX folios_scheme_idx   ON folios (scheme_id);
 
@@ -145,21 +162,28 @@ CREATE INDEX folios_scheme_idx   ON folios (scheme_id);
 -- amount every month (or quarter). Each registration here produces one
 -- 'SIP' transaction per period in the transactions table.
 CREATE TABLE sip_registrations (
+    -- The SIP's own ID number.
     sip_id              bigint PRIMARY KEY,
+    -- The folio the SIP invests into (foreign key to folios).
     folio_id            bigint NOT NULL REFERENCES folios (folio_id),
 
     -- A SIP buys into one specific plan (e.g. Direct Growth).
     plan_id             integer NOT NULL REFERENCES scheme_plans (plan_id),
 
+    -- The amount invested each period, in rupees (must be more than 0).
     sip_amount          numeric(18, 2) NOT NULL CHECK (sip_amount > 0),
+    -- How often the SIP invests.
     frequency           text NOT NULL CHECK (frequency IN ('Monthly', 'Quarterly')),
 
+    -- The first instalment date; end_date is the last one (if any).
     start_date          date NOT NULL,
     end_date            date,               -- NULL = runs until cancelled
 
+    -- The SIP's current state.
     sip_status          text NOT NULL
         CHECK (sip_status IN ('Active', 'Cancelled', 'Completed', 'Paused')),
 
+    -- The day the SIP was cancelled (only filled in for cancelled SIPs).
     cancelled_date      date,
 
     -- The distributor who registered the SIP. Declared with REFERENCES,
@@ -170,7 +194,9 @@ CREATE TABLE sip_registrations (
     -- A cancelled SIP must have a cancellation date, and only a cancelled
     -- SIP may have one. This keeps the two columns consistent.
     CHECK ((sip_status = 'Cancelled') = (cancelled_date IS NOT NULL)),
+    -- A SIP cannot end before it starts.
     CHECK (end_date IS NULL OR end_date >= start_date)
 );
 
+-- Makes "all SIPs of this folio" fast.
 CREATE INDEX sip_registrations_folio_idx ON sip_registrations (folio_id);

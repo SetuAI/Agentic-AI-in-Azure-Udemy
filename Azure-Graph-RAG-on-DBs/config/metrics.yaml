@@ -8,9 +8,19 @@
 # defines it, instead of however the model guesses.
 #
 # The client's business team signs off this file (Stage 5 sign-off).
+#
+# HOW IT IS READ: agent/context.py -> metrics() returns the "metrics" dict.
+# Every metric has the same 3 fields:
+#   description -> one plain-English line (used to recognise the metric)
+#   definition  -> the exact SQL recipe given to the SQL-writing model
+#                  (">" means "the indented lines below are one long text")
+#   tables      -> the tables that recipe needs (added to the search results)
+# To add a new metric: copy one block, give it a new snake_case name, and
+# fill in the same 3 fields.
 # =============================================================================
 
 metrics:
+  # Net flows = money in minus money out of a scheme.
   net_flows:
     description: Money into a scheme minus money out, from completed transactions.
     definition: >
@@ -19,6 +29,7 @@ metrics:
       Money out = Redemption, Switch Out. Join transactions -> scheme_plans -> schemes to get the scheme.
     tables: [transactions, scheme_plans, schemes]
 
+  # Redemptions = investors taking money out.
   redemptions:
     description: Money taken out of a scheme by investors.
     definition: >
@@ -26,6 +37,7 @@ metrics:
       redemptions, SUM(amount) for the value.
     tables: [transactions, scheme_plans, schemes]
 
+  # AUM = assets under management (how big a scheme is).
   aum:
     description: Assets under management, the total money a scheme manages at a month end.
     definition: >
@@ -33,6 +45,7 @@ metrics:
       do not add up portfolio_holdings for AUM.
     tables: [scheme_aum_monthly, schemes]
 
+  # Rejection rate = % of transactions that were rejected.
   rejection_rate:
     description: Share of transactions that were rejected.
     definition: >
@@ -41,6 +54,7 @@ metrics:
       went through a distributor. Require a minimum number of transactions per group, e.g. 100.
     tables: [transactions, distributors]
 
+  # SIP cancellations = monthly investment plans that investors stopped.
   sip_cancellations:
     description: SIPs that investors cancelled.
     definition: >
@@ -48,6 +62,7 @@ metrics:
       join sip_registrations -> folios -> investors and group by investors.city_tier or city.
     tables: [sip_registrations, folios, investors]
 
+  # Issuer exposure = how much of a portfolio sits with one company.
   issuer_exposure:
     description: Share of a scheme's portfolio in one issuer, for concentration and limit checks.
     definition: >
@@ -56,6 +71,7 @@ metrics:
       to government issuers: exclude issuers.issuer_type = 'Government' for limit checks.
     tables: [portfolio_holdings, securities, issuers, schemes]
 
+  # Group exposure = how much of a portfolio sits with one business group.
   group_exposure:
     description: Share of a scheme's portfolio in one business group.
     definition: >
@@ -63,6 +79,7 @@ metrics:
       joining portfolio_holdings -> securities -> issuers -> issuer_groups.
     tables: [portfolio_holdings, securities, issuers, issuer_groups, schemes]
 
+  # Fund return = NAV growth over a period, versus the benchmark.
   fund_return:
     description: How much a scheme's NAV grew over a period, compared with its benchmark.
     definition: >
@@ -70,6 +87,7 @@ metrics:
       Return = NAV at end date / NAV at start date - 1, from nav_history. Benchmark return the same way
       from benchmark_values via schemes.benchmark_id. Use the nearest available date on or before each date.
     tables: [nav_history, scheme_plans, schemes, benchmark_values]
+  # Rating downgrades = bonds whose credit rating got worse, and who held them.
   rating_downgrades:
     description: Bonds whose credit rating was cut, and the schemes that held them.
     definition: >

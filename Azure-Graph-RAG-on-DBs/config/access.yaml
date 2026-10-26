@@ -1,0 +1,7 @@
+# =============================================================================
+# config/access.yaml  -  PLACEHOLDER (intentionally empty for now)
+# =============================================================================
+# This file is reserved for a later stage: rules for WHO may see WHICH tables
+# or rows (role-based access). No code reads it yet, so there is nothing to
+# fill in. Leave it as it is.
+# =============================================================================

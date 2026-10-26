@@ -28,13 +28,16 @@
 #   note          -> anything the scorer or a human reviewer should know
 # =============================================================================
 
+# HOW IT IS READ: tests/test_stage5_metadata.py -> _answer_key(). Each "- " starts one list item.
 hidden_links:
 
+  # Hidden link 1 (same column name on both sides).
   - from: scheme_aum_monthly.scheme_id
     to: schemes.scheme_id
     findable_by: same_name
     note: Easiest of the three. Column name matches schemes' primary key exactly.
 
+  # Hidden link 2 (different names; found only by comparing values).
   - from: credit_rating_history.sec_cd
     to: securities.security_code
     findable_by: value_overlap
@@ -42,6 +45,7 @@ hidden_links:
       Old-style column name. Points to security_code, NOT to security_id,
       so a pipeline that only compares against primary keys will miss it.
 
+  # Hidden link 3 (different names; NULL = no distributor).
   - from: transactions.arn_code
     to: distributors.arn_no
     findable_by: value_overlap

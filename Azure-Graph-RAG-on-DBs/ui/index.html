@@ -25,52 +25,74 @@
     POST /query         per question, sending the conversation_id so follow-ups work
     GET  /me            once, for the signed-in user's name (App Service only)
 -->
+<!-- HOW TO OPEN IT: start the app (uv run uvicorn api.main:app --port 8000) and go to http://localhost:8000 -->
+<!-- The page has three parts: the style block (CSS: how it looks), the body (HTML: what is on it), and the script block (JavaScript: what it does). -->
 <html lang="en">
+<!-- The head holds settings and styles; nothing in it is shown directly. -->
 <head>
+<!-- Use UTF-8 so symbols like ₹, · and → display correctly. -->
 <meta charset="utf-8">
+<!-- Make the page fit phone screens too. -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- The text shown on the browser tab. -->
 <title>FundGraph · Ask your fund data</title>
+<!-- CSS starts here. Each rule is:  selector { property: value; ... }  -->
 <style>
+  /* Colour variables, used below as var(--name). Change a colour here to change it everywhere. */
   :root {
     --bg: #f4f6f9; --card: #ffffff; --ink: #14202e; --muted: #5b6b7d; --line: #dde3ea;
     --brand: #0b4f8a; --accent: #e8792b; --ok: #1d8a4e; --bad: #c0392b; --soft: #eef3f8;
     --warn: #8a5a00;
   }
+  /* Widths include padding and border (easier sizing). */
   * { box-sizing: border-box; }
+  /* Page font and colours. */
   body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
          background: var(--bg); color: var(--ink); }
+  /* The dark-blue top banner and its title, subtitle and link. */
   header { position: relative; background: linear-gradient(120deg, #0b2f52, #0b4f8a); color: #fff; padding: 22px 32px; }
   header h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: .2px; }
   header p { margin: 6px 0 0; opacity: .85; font-size: 13px; }
   header nav { margin-top: 10px; font-size: 12.5px; }
   header nav a { color: #fff; opacity: .9; }
+  /* The signed-in user's name, top right. */
   #user { position: absolute; top: 22px; right: 32px; font-size: 12px; opacity: .9; }
   #user a { color: #fff; margin-left: 10px; }
+  /* The small technology "pills" in the header. */
   .badges span { display: inline-block; margin: 10px 6px 0 0; padding: 3px 9px; border-radius: 99px;
                  background: rgba(255,255,255,.14); font-size: 11.5px; }
+  /* The main content column, centred, at most 1360 pixels wide. */
   main { max-width: 1360px; margin: 0 auto; padding: 22px 32px 60px; }
+  /* On phones: smaller side padding, and the user name moves into the flow. */
   @media (max-width: 700px) { main, header { padding-left: 16px; padding-right: 16px; } #user { position: static; margin-bottom: 8px; } }
+  /* A "card" is a white rounded box; every section of the page is one. */
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; min-width: 0; }
   .card h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted);
              display: flex; align-items: center; gap: 10px; }
   .card h2 .spacer { flex: 1; }
+  /* The question box and its buttons, in one row. */
   .ask { display: flex; gap: 10px; flex-wrap: wrap; }
   .ask input { flex: 1; min-width: 220px; font-size: 16px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 10px; }
   .ask input:focus { outline: 2px solid var(--brand); border-color: transparent; }
+  /* Buttons: .primary = the blue "Ask" button, .ghost = outlined, .small = compact. */
   button { font: inherit; cursor: pointer; border: 0; border-radius: 10px; }
   .primary { background: var(--brand); color: #fff; padding: 0 22px; font-weight: 600; min-height: 46px; }
   .primary:disabled { opacity: .55; cursor: wait; }
   .ghost { background: transparent; color: var(--brand); border: 1px solid var(--line); padding: 8px 12px; font-size: 13px; }
   .small { padding: 4px 10px; font-size: 12px; border-radius: 8px; text-transform: none; letter-spacing: 0; }
   .ghost:disabled { opacity: .45; cursor: default; }
+  /* The example-question "chips" (red ones are the safety examples). */
   .chips { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { background: var(--soft); color: var(--brand); padding: 7px 11px; font-size: 12.5px; border-radius: 99px; text-align: left; }
   .chip.warn { background: #fdecea; color: var(--bad); }
   .chip:hover { filter: brightness(.96); }
+  /* Page rows; .two = two columns side by side (one column on narrow screens). */
   .row { display: grid; gap: 18px; margin-top: 18px; }
   .two { grid-template-columns: 1fr 1.1fr; align-items: start; }
   @media (max-width: 1050px) { .two { grid-template-columns: 1fr; } }
+  /* Cards stacked on top of each other inside one column. */
   .stack { display: grid; gap: 18px; min-width: 0; }
+  /* Small grey helper text. */
   .meta { margin-top: 10px; font-size: 12.5px; color: var(--muted); }
   .empty { color: var(--muted); font-size: 13px; }
 
@@ -88,6 +110,8 @@
   .stat.hl .v { color: var(--accent); }
 
   /* GraphRAG trace */
+  /* The trace is a vertical timeline: a dot per stage joined by a line. */
+  /* Dot colours: green = ok, red = fail, amber = warning, grey = not reached. */
   .trace { list-style: none; margin: 0; padding: 0; }
   .trace > li { position: relative; padding: 0 0 16px 30px; }
   .trace > li::before { content: ""; position: absolute; left: 7px; top: 18px; bottom: 0; width: 2px; background: var(--line); }
@@ -103,18 +127,22 @@
   .trace .tech { font-size: 11px; color: var(--muted); background: var(--soft); padding: 1px 7px; border-radius: 99px; }
   .trace .ms { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .trace .body { font-size: 13px; margin-top: 5px; line-height: 1.5; word-break: break-word; }
+  /* Small grey labels inside the trace (red ones mark problems). */
   .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
   .tag { font-size: 12px; padding: 3px 8px; border-radius: 6px; background: var(--soft); }
   .tag.bad { background: #fdecea; color: var(--bad); }
+  /* The table-search list: table name, why it was picked, and a score bar. */
   .picks { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 12.5px; }
   .picks td { padding: 4px 6px 4px 0; border: 0; white-space: normal; }
   .src { font-size: 11px; padding: 1px 7px; border-radius: 99px; font-weight: 600; white-space: nowrap; }
   .picks td:first-child { white-space: nowrap; font-weight: 600; }
   .picks td:last-child { color: var(--muted); width: 100%; }
+  /* One colour per pick source: entity (a name), metric, search, need (a data phrase). */
   .src.entity { background: #e6f0fa; color: var(--brand); }
   .src.metric { background: #f1e9fb; color: #6b3fa0; }
   .src.search { background: #fff1e6; color: #b05a16; }
   .src.need { background: #e7f5ec; color: var(--ok); }
+  /* The similarity score bar. */
   .bar { height: 6px; border-radius: 3px; background: var(--soft); width: 90px; display: inline-block; vertical-align: middle; }
   .bar i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
   .insql { color: var(--ok); font-weight: 700; margin-left: 4px; }
@@ -122,6 +150,7 @@
   .hidden-tag { font-size: 10.5px; color: var(--accent); font-weight: 700; margin-left: 4px; }
 
   /* Graph */
+  /* Graph text; .used = in the SQL, .seen = picked but unused, .faded = not in focus, .focus = clicked table. */
   svg text { font-size: 10.5px; fill: var(--muted); }
   svg .used text { fill: var(--ink); font-weight: 700; }
   svg .seen text { fill: var(--brand); }
@@ -131,6 +160,7 @@
   svg .focus text { fill: var(--accent); font-weight: 700; }
 
   /* Records per table */
+  /* The "records per table" list: name, a bar sized by row count, and the count. */
   .rec-total { font-size: 13px; color: var(--muted); margin: -4px 0 10px; }
   .rec-total b { color: var(--ink); font-size: 15px; }
   .rec { list-style: none; margin: 0; padding: 0; max-height: 330px; overflow: auto; }
@@ -146,19 +176,24 @@
   .rec .track span { display: block; height: 100%; background: #7fa6c9; border-radius: 4px; min-width: 2px; }
   .rec li.used .track span { background: var(--brand); }
   .rec .n { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+  /* The two-button switch "All tables / This answer". */
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; text-transform: none; letter-spacing: 0; }
   .seg button { border-radius: 0; background: transparent; color: var(--muted); padding: 4px 10px; font-size: 12px; }
   .seg button.on { background: var(--soft); color: var(--brand); font-weight: 600; }
   .seg button:disabled { opacity: .45; cursor: default; }
+  /* The details box shown under the list when a table is clicked. */
   .detail { margin-top: 12px; padding: 12px 14px; border-radius: 8px; background: var(--soft); font-size: 13px; line-height: 1.5; }
   .detail h3 { margin: 0 0 4px; font-size: 14px; }
   .detail .meta { margin-top: 6px; }
   .detail .close { float: right; padding: 0 6px; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; }
+  /* The graph legend under the drawing. */
   .legend { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
   .legend .k { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
 
   /* Answer */
+  /* The answer text; pre-wrap keeps the model's line breaks. */
   .commentary { font-size: 16px; line-height: 1.6; margin: 0; white-space: pre-wrap; }
+  /* The result table scrolls inside a 440-pixel box; its header row stays visible (sticky). */
   .tablewrap { overflow: auto; max-height: 440px; margin-top: 14px; border: 1px solid var(--line); border-radius: 8px; }
   table.result { border-collapse: collapse; width: 100%; font-size: 13px; }
   table.result th { position: sticky; top: 0; background: var(--soft); text-align: left; padding: 8px 10px; font-weight: 600; }
@@ -170,6 +205,7 @@
 
   /* SQL */
   .explain { font-size: 14px; margin: 0 0 10px; }
+  /* The dark SQL box and its highlight colours: keywords, functions, strings, numbers, comments. */
   pre { background: #0f1b2a; color: #d6e4f0; padding: 14px; border-radius: 8px; overflow: auto;
         font-size: 12.5px; line-height: 1.55; margin: 0; }
   pre .kw { color: #7cc4ff; font-weight: 600; }
@@ -177,20 +213,25 @@
   pre .str { color: #a8e6a1; }
   pre .num { color: #f0a1c2; }
   pre .cm { color: #7f93a8; font-style: italic; }
+  /* Safety-check pills: green = passed, red = failed. */
   .checks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .check { font-size: 12px; padding: 4px 9px; border-radius: 99px; background: #e7f5ec; color: var(--ok); }
   .check.fail { background: #fdecea; color: var(--bad); }
+  /* A collapsible box per failed SQL attempt. */
   details.attempt { margin-top: 12px; border: 1px solid #f5c6c0; border-radius: 8px; background: #fffafa; }
   details.attempt summary { cursor: pointer; padding: 9px 12px; font-size: 13px; color: var(--bad); }
   details.attempt .err { padding: 0 12px 10px; font-size: 12.5px; color: var(--ink); }
   details.attempt pre { margin: 0 12px 12px; }
 
+  /* The spinning circle shown on the Ask button while waiting. */
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-right-color: transparent;
              border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
+<!-- Everything inside the body is what you see on the page. -->
 <body>
+<!-- Top banner: user name (filled in by the script), title, technology badges, link to the full graph. -->
 <header>
   <div id="user"></div>
   <h1>Sahyadri Mutual Fund · Ask your data</h1>
@@ -202,9 +243,12 @@
   <nav><a href="/graph">Explore the full schema graph →</a></nav>
 </header>
 
+<!-- The main content: question box, then the result sections. -->
 <main>
+  <!-- 1. The question box, example chips and conversation info. -->
   <section class="card">
     <div class="ask">
+      <!-- Where the user types the question (id="q"). -->
       <input id="q" placeholder="e.g. Why did net flows in Sahyadri Credit Risk Fund drop in March 2024?" autocomplete="off">
       <button id="go" class="primary">Ask</button>
       <button id="reset" class="ghost" title="Start a new conversation">New conversation</button>
@@ -213,12 +257,15 @@
     <div class="meta" id="conv"></div>
   </section>
 
+  <!-- Hidden unless the answer was blocked, failed or needs clarification. -->
   <div class="banner" id="banner"></div>
 
   <div class="row">
+    <!-- 2. The number strip (filled by renderStats). -->
     <div class="stats" id="stats"></div>
   </div>
 
+  <!-- 3. Left: the GraphRAG trace. Right: the schema graph and the records list. -->
   <div class="row two">
     <section class="card">
       <h2>GraphRAG trace</h2>
@@ -228,6 +275,7 @@
     <div class="stack">
     <section class="card">
       <h2>Schema graph</h2>
+      <!-- drawGraph() draws the 20 tables into this SVG. -->
       <svg id="graph" viewBox="0 0 640 520" width="100%" role="img" aria-label="Schema graph of the 20 tables"></svg>
       <div class="legend">
         <span class="k" style="background:#0b4f8a"></span>Used by the SQL &nbsp;
@@ -241,6 +289,7 @@
       <h2>Records per table <span class="spacer"></span>
         <span class="seg"><button id="recAll" class="on">All tables</button><button id="recUsed" disabled>This answer</button></span></h2>
       <div class="rec-total" id="recTotal">Counting rows…</div>
+      <!-- renderRecords() fills this list; showDetail() fills tableDetail. -->
       <ul class="rec" id="rec"></ul>
       <div id="tableDetail"></div>
     </section>
@@ -251,6 +300,7 @@
     <section class="card">
       <h2>Answer <span class="spacer"></span>
         <button id="csv" class="ghost small" disabled>Download CSV</button></h2>
+      <!-- 4. The answer: commentary, "understood as", the result table and notes. -->
       <p class="commentary" id="commentary"><span class="empty">No answer yet.</span></p>
       <div class="meta" id="understood"></div>
       <div class="tablewrap" id="tablewrap" style="display:none"><table class="result" id="result"></table></div>
@@ -263,6 +313,7 @@
       <h2>SQL and safety checks <span class="spacer"></span>
         <button id="copy" class="ghost small" disabled>Copy SQL</button></h2>
       <p class="explain" id="explain"></p>
+      <!-- 5. The SQL (highlighted), its safety checks and any failed attempts. -->
       <pre id="sql">-- The generated SQL appears here.</pre>
       <div class="checks" id="checks"></div>
       <div id="attempts"></div>
@@ -270,10 +321,12 @@
   </div>
 </main>
 
+<!-- JavaScript starts here: everything the page does. -->
 <script>
 // ---------------------------------------------------------------------------
 // Demo questions. The last two show the safety layers stopping a request.
 // ---------------------------------------------------------------------------
+// Each entry: [question text] or [question text, "warn"] ("warn" makes the chip red).
 const EXAMPLES = [
   ["Why did net flows in Sahyadri Credit Risk Fund drop in March 2024?"],
   ["Which schemes hold bonds that were downgraded in March 2024, and what were their redemptions that month?"],
@@ -288,20 +341,29 @@ const EXAMPLES = [
 ];
 
 let conversationId = null;     // set by the server on the first answer, reused for follow-ups
+// How many questions have been asked in this conversation.
 let turns = 0;
+// The schema graph from /schema-graph (empty until it loads).
 let schema = { nodes: [], edges: [] };
 let last = null;               // the last answer, for Copy SQL and Download CSV
+// $("x") is a short way to find the element with id="x".
 const $ = id => document.getElementById(id);
+// esc() makes any text safe to put inside HTML (so data can never inject markup).
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+// fmt() formats numbers the Indian way (e.g. 1,00,000), shows null as "—", and leaves text as is.
 const fmt = v => typeof v === "number"
   ? v.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : (v === null ? "—" : String(v));
+// Milliseconds -> "2.3s".
 const secs = ms => ms == null ? "" : (ms / 1000).toFixed(1) + "s";
+// A single text key that identifies a join, e.g. "transactions|plan_id|scheme_plans|plan_id".
 const edgeKey = e => [e.from_table, e.from_column, e.to_table, e.to_column].join("|");
+// True if a join is one the pipeline discovered (not declared in the database).
 const isHidden = j => (schema.edges.find(e => edgeKey(e) === edgeKey(j)) || j).source !== "declared";
 
 // ---------------------------------------------------------------------------
 // Example chips
 // ---------------------------------------------------------------------------
+// Make one clickable chip per example; clicking fills the box and asks the question.
 for (const [text, kind] of EXAMPLES) {
   const b = document.createElement("button");
   b.className = "chip" + (kind ? " " + kind : "");
@@ -315,25 +377,37 @@ for (const [text, kind] of EXAMPLES) {
 // view  = what the current answer used (redrawn as is when the focus changes)
 // focus = the table the user clicked or is hovering, with its neighbours
 // ---------------------------------------------------------------------------
+// What the current answer used (tables, joins, picked tables).
 let view = { used: [], joins: [], picked: [] };
+// focus = table currently highlighted; pinned = table the user clicked (stays highlighted).
 let focus = null, pinned = null;
+// The tables directly joined to table t.
 const neighbours = t => new Set(schema.edges.flatMap(e =>
   e.from_table === t ? [e.to_table] : e.to_table === t ? [e.from_table] : []));
 
+// Redraw the graph. With no arguments it redraws the current answer's view.
 function drawGraph(usedTables = view.used, usedJoins = view.joins, pickedTables = view.picked) {
   view = { used: usedTables, joins: usedJoins, picked: pickedTables };
+  // Drawing size, its centre, and the radius of the circle the tables sit on.
   const svg = $("graph"), W = 640, H = 520, cx = W / 2, cy = H / 2, r = 195;
+  // table name -> its x, y position and angle.
   const pos = {};
+  // Space the tables evenly around the circle, starting at the top (- PI / 2).
   schema.nodes.forEach((name, i) => {
     const a = (2 * Math.PI * i) / schema.nodes.length - Math.PI / 2;
     pos[name] = { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), a };
   });
+  // The joins the SQL used (drawn in orange).
   const lit = new Set(usedJoins.map(edgeKey));
+  // The focused table's neighbours.
   const near = focus ? neighbours(focus) : null;
+  // Is a table part of the current focus? (Everything is, when nothing is focused.)
   const inFocus = t => !focus || t === focus || near.has(t);
+  // The SVG markup being built.
   let out = "";
   // Edges first, so nodes are drawn on top of them. Lit edges last, so they sit on top of the rest.
   const edges = [...schema.edges].sort((a, b) => lit.has(edgeKey(a)) - lit.has(edgeKey(b)));
+  // One <line> per link: orange if used, darker if it touches the focus, dashed if discovered.
   for (const e of edges) {
     const a = pos[e.from_table], b = pos[e.to_table];
     if (!a || !b) continue;
@@ -344,6 +418,7 @@ function drawGraph(usedTables = view.used, usedJoins = view.joins, pickedTables 
              stroke="${on ? "#e8792b" : touches ? "#5b6b7d" : "#c9d3de"}" stroke-width="${on ? 3.5 : touches ? 2 : 1.2}">
              <title>${esc(`${e.from_table}.${e.from_column} = ${e.to_table}.${e.to_column} (${e.source})`)}</title></line>`;
   }
+  // One circle + label per table: filled = used, outlined = picked, ring = focused.
   for (const name of schema.nodes) {
     const p = pos[name], used = usedTables.includes(name), seen = !used && pickedTables.includes(name);
     // Labels sit outside the circle, left- or right-aligned by side.
@@ -356,6 +431,7 @@ function drawGraph(usedTables = view.used, usedJoins = view.joins, pickedTables 
                       stroke="${used || seen ? "#0b4f8a" : "#9aabbd"}" stroke-width="${seen ? 2.5 : 2}"></circle>
               <text x="${lx}" y="${ly + 3}" text-anchor="${anchor}">${esc(name)}</text></g>`;
   }
+  // Put all the markup into the SVG at once.
   svg.innerHTML = out;
 }
 
@@ -365,12 +441,14 @@ $("graph").addEventListener("click", e => {
   select(g && g.dataset.t !== pinned ? g.dataset.t : null);
 });
 
+// Highlight table t (or nothing) in the graph and in the records list.
 function setFocus(t) {
   focus = t;
   drawGraph();
   for (const li of $("rec").children) li.classList.toggle("on", li.dataset.t === t);
 }
 
+// Pin table t: highlight it and show its details (null clears).
 function select(t) {
   pinned = t;
   setFocus(t);
@@ -380,11 +458,16 @@ function select(t) {
 // ---------------------------------------------------------------------------
 // Records per table
 // ---------------------------------------------------------------------------
+// counts = table -> rows; recTables = the list from /table-counts; recOnlyUsed = "This answer" switch.
 let counts = {}, recTables = [], recOnlyUsed = false;
 
+// Draw the records list: one row per table with a bar sized by its row count.
 function renderRecords() {
+  // Tables the current answer's SQL used.
   const used = new Set(view.used);
+  // All tables, or only the used ones.
   const list = recOnlyUsed ? recTables.filter(t => used.has(t.table)) : recTables;
+  // The biggest row count (the full-width bar).
   const max = Math.max(1, ...recTables.map(t => t.rows));
   $("rec").innerHTML = list.map(t => `
     <li data-t="${esc(t.table)}" class="${used.has(t.table) ? "used" : ""} ${t.table === focus ? "on" : ""}" title="${esc(t.table)}: ${fmt(t.rows)} rows">
@@ -392,23 +475,30 @@ function renderRecords() {
       <span class="track"><span style="width:${(100 * t.rows / max).toFixed(2)}%"></span></span>
       <span class="n">${fmt(t.rows)}</span></li>`).join("")
     || '<li class="empty">No tables used yet.</li>';
+  // "This answer" only works once an answer used some tables.
   $("recUsed").disabled = !used.size;
 }
 
+// Hovering a row highlights that table in the graph.
 $("rec").addEventListener("mouseover", e => {
   const li = e.target.closest("li[data-t]");
   if (li && li.dataset.t !== focus) setFocus(li.dataset.t);
 });
+// Leaving the list goes back to the pinned table (if any).
 $("rec").addEventListener("mouseleave", () => setFocus(pinned));
+// Clicking a row pins it (clicking it again un-pins).
 $("rec").addEventListener("click", e => {
   const li = e.target.closest("li[data-t]");
   if (li) select(li.dataset.t === pinned ? null : li.dataset.t);
 });
+// The "All tables" / "This answer" switch.
 $("recAll").onclick = () => { recOnlyUsed = false; $("recAll").classList.add("on"); $("recUsed").classList.remove("on"); renderRecords(); };
 $("recUsed").onclick = () => { recOnlyUsed = true; $("recUsed").classList.add("on"); $("recAll").classList.remove("on"); renderRecords(); };
 
+// Show a table's description, row count, grain and joins under the records list.
 function showDetail(t) {
   if (!t) { $("tableDetail").innerHTML = ""; return; }
+  // The table's notes from /schema-graph.
   const info = (schema.tables || {})[t] || {};
   const joins = schema.edges.filter(e => e.from_table === t || e.to_table === t).map(e => {
     const other = e.from_table === t ? e.to_table : e.from_table;
@@ -424,8 +514,11 @@ function showDetail(t) {
 // ---------------------------------------------------------------------------
 // Number strip
 // ---------------------------------------------------------------------------
+// Fill the 5-number strip from an answer (or dashes before the first answer).
 function renderStats(data) {
+  // The answer's details and joins ({} / [] if missing).
   const d = data.details || {}, joins = d.join_path || [];
+  // Add up the time of every step.
   const total = (d.steps || []).reduce((s, x) => s + x.ms, 0);
   const items = data.status ? [
     // With no SQL, nothing was used yet: show how many tables were picked instead.
@@ -445,26 +538,34 @@ function renderStats(data) {
 // GraphRAG trace: one entry per pipeline stage, built from the steps the
 // agent ran (with their times) and the details the server returned.
 // ---------------------------------------------------------------------------
+// Total time of the given steps, or null if none of them ran.
 function stageTime(steps, names) {
   const hit = steps.filter(s => names.includes(s.step));
   return hit.length ? hit.reduce((t, s) => t + s.ms, 0) : null;
 }
 
+// Build the GraphRAG trace: 8 stages, each with a status dot, the technology used, its time and details.
 function renderTrace(data) {
   const d = data.details || {}, steps = d.steps || [];
+  // Did a step run?
   const ran = name => steps.some(s => s.step === name);
+  // The note the last run of a step left.
   const detail = name => (steps.filter(s => s.step === name).pop() || {}).detail || "";
+  // The stages to show, filled by add().
   const stages = [];
+  // add() records one stage; a stage whose first step never ran is shown as "not reached".
   const add = (title, tech, names, state, body) =>
     stages.push({ title, tech, ms: stageTime(steps, names), state: ran(names[0]) ? state : "skip", body });
 
   // 1. Safety
+  // The Prompt Shields result.
   const shield = d.prompt_shield;
   add("Safety check", "Content Safety · Prompt Shields", ["guard_input"],
       shield && shield.attack ? "fail" : "ok",
       esc(shield ? shield.note : detail("guard_input")));
 
   // 2. Understanding
+  // The understood time range as text.
   const tr = d.time_range ? `${d.time_range.start} → ${d.time_range.end}` : "none";
   add("Understanding", "gpt-5.1", ["understand"],
       data.status === "needs_clarification" ? "warn" : (data.status === "blocked" && !ran("match_entities") && ran("understand")) ? "fail" : "ok",
@@ -476,6 +577,7 @@ function renderTrace(data) {
         : esc(detail("understand") || data.message || ""));
 
   // 3. Name matching
+  // Matched and unmatched names.
   const ents = d.entities || [], unm = d.unmatched || [];
   add("Name matching", "pgvector · value search", ["match_entities"], unm.length ? "warn" : "ok",
       (ents.length || unm.length)
@@ -485,9 +587,13 @@ function renderTrace(data) {
         : "No names to match.");
 
   // 4. Table search
+  // Tables the SQL used.
   const used = new Set(d.tables_used || []);
+  // Why each table was picked.
   const picks = d.table_picks || [];
+  // A small bar for a search score (between 4% and 100% wide).
   const bar = s => `<span class="bar"><i style="width:${Math.max(4, Math.min(100, s * 100))}%"></i></span> similarity ${s}`;
+  // Search picks show their score; other picks show their reason.
   const why = p => p.source === "search" ? bar(p.score) : esc(p.reason);
   add("Table search", "pgvector · table notes", ["select_tables"], "ok",
       picks.length
@@ -498,6 +604,7 @@ function renderTrace(data) {
         : esc(detail("select_tables")));
 
   // 5. Join path
+  // The joins from the AGE graph.
   const joins = d.join_path || [];
   add("Join path", "Apache AGE · Cypher", ["find_join_path"], d.join_note ? "warn" : "ok",
       (joins.length
@@ -506,7 +613,9 @@ function renderTrace(data) {
       + (d.join_note ? `<div class="note">${esc(d.join_note)}</div>` : ""));
 
   // 6. SQL
+  // Earlier SQL attempts that failed.
   const failed = d.failed_sql || [];
+  // Did any safety check fail?
   const checksFailed = (d.checks || []).some(c => !c.passed);
   add("Write and check SQL", "gpt-5.1 · sqlglot · EXPLAIN", ["write_sql", "check_sql"],
       data.status === "blocked" && ran("write_sql") && !ran("check_sql") ? "fail" : checksFailed && !ran("run_sql") ? "fail" : failed.length ? "warn" : "ok",
@@ -522,6 +631,7 @@ function renderTrace(data) {
   add("Answer", "gpt-5.1", ["summarise", "write_commentary", "remember"], "ok",
       data.commentary ? "Commentary written from the result. See Answer below." : "");
 
+  // Turn the stages into the timeline's list items.
   $("trace").innerHTML = stages.map(s => `
     <li class="${s.state === "ok" ? "" : s.state}"><span class="node"></span>
       <div class="head"><span class="title">${s.title}</span><span class="tech">${s.tech}</span>
@@ -532,8 +642,11 @@ function renderTrace(data) {
 // ---------------------------------------------------------------------------
 // SQL highlighting (keywords, functions, strings, numbers, comments)
 // ---------------------------------------------------------------------------
+// SQL keywords to colour.
 const KW = "select|from|where|join|left|right|inner|outer|full|cross|on|and|or|not|in|is|null|as|group|by|order|having|limit|offset|with|case|when|then|else|end|distinct|union|all|between|like|ilike|asc|desc|over|partition|filter|interval|date|exists|any|true|false|lateral|using|rows|range|preceding|following|current|row|nulls|first|last";
+// One pattern that finds, in order: 'strings', -- comments, numbers, keywords, and names followed by "(" (functions).
 const SQL_RE = new RegExp(`('(?:[^']|'')*')|(--[^\\n]*)|\\b(\\d+(?:\\.\\d+)?)\\b|\\b(${KW})\\b|\\b([a-z_][a-z0-9_]*)(?=\\s*\\()`, "gi");
+// Wrap each match in a coloured <span>; keywords are also UPPERCASED.
 function highlight(sql) {
   return esc(sql).replace(SQL_RE, (m, str, cm, num, kw, fn) =>
     str ? `<span class="str">${m}</span>` : cm ? `<span class="cm">${m}</span>` :
@@ -544,24 +657,31 @@ function highlight(sql) {
 // ---------------------------------------------------------------------------
 // Rendering one answer
 // ---------------------------------------------------------------------------
+// Show one answer everywhere on the page.
 function render(data) {
   const d = data.details || {};
+  // Remember it for Copy SQL and Download CSV.
   last = data;
 
   // Banner for anything other than a completed answer.
+  // The coloured message box.
   const banner = $("banner");
+  // Not completed: show the banner with the reason.
   if (data.status && data.status !== "completed") {
     banner.className = "banner " + data.status;
     banner.style.display = "block";
     const label = { blocked: "Blocked", failed: "Could not answer", needs_clarification: "Needs clarification" }[data.status] || data.status;
     banner.innerHTML = `<b>${label}.</b> ${esc(data.message || "")}`;
+  // Completed: hide the banner.
   } else {
     banner.style.display = "none";
   }
 
+  // Update every section.
   renderStats(data);
   renderTrace(data);
   drawGraph(d.tables_used || [], d.join_path || [], d.tables_considered || []);
+  // If "This answer" is on but nothing was used, switch back to "All tables".
   if (recOnlyUsed && !(d.tables_used || []).length) $("recAll").click();
   renderRecords();
 
@@ -571,11 +691,15 @@ function render(data) {
     ? `Understood as: <i>${esc(d.standalone_question)}</i>` : "";
 
   // Result table
+  // The result table ({columns, rows}), if any.
   const t = (data.tables || [])[0];
+  // There are rows: show the table.
   if (t && t.rows.length) {
     $("tablewrap").style.display = "block";
     // A column of numbers gets a right-aligned header, to sit over its values.
+    // For each column: is every value a number (or empty)?
     const numeric = t.columns.map((_, i) => t.rows.every(r => r[i] === null || typeof r[i] === "number"));
+    // Header row, then one row per result row; numbers right-aligned, negatives in red.
     $("result").innerHTML = "<tr>" + t.columns.map((c, i) => `<th class="${numeric[i] ? "num" : ""}">${esc(c)}</th>`).join("") + "</tr>" +
       t.rows.map(r => "<tr>" + r.map(v => {
         const cls = typeof v === "number" ? "num" + (v < 0 ? " neg" : "") : "";
@@ -584,20 +708,29 @@ function render(data) {
   } else {
     $("tablewrap").style.display = "none";
   }
+  // Warnings shown under the table.
   const notes = [];
   if (t && d.row_count > t.rows.length) notes.push(`Showing the first ${fmt(t.rows.length)} of ${fmt(d.row_count)} rows. Download CSV has the same ${fmt(t.rows.length)}.`);
   if (d.row_count >= d.row_cap) notes.push(`The query hit the row cap of ${fmt(d.row_cap)}, so the result may be incomplete.`);
+  // Show the warnings (or nothing).
   $("rownote").textContent = notes.join(" ");
+  // Download CSV only when there are rows.
   $("csv").disabled = !(t && t.rows.length);
 
   // SQL, explanation, checks and failed attempts
+  // What the SQL calculates, in one sentence.
   $("explain").textContent = d.sql_explanation || "";
+  // The highlighted SQL.
   $("sql").innerHTML = d.sql ? highlight(d.sql) : "-- No SQL was written or run.";
+  // Copy SQL only when there is SQL.
   $("copy").disabled = !d.sql;
+  // Prompt Shields is shown as the first check pill.
   const shield = d.prompt_shield
     ? [{ check: "prompt_shields", passed: !d.prompt_shield.attack, detail: d.prompt_shield.note }] : [];
+  // One pill per check: ✓ passed, ✗ failed; hover shows the detail.
   $("checks").innerHTML = shield.concat(d.checks || []).map(c =>
     `<span class="check ${c.passed ? "" : "fail"}" title="${esc(c.detail)}">${c.passed ? "✓" : "✗"} ${esc(c.check.replaceAll("_", " "))}</span>`).join("");
+  // One collapsible box per failed attempt: the error and the SQL.
   $("attempts").innerHTML = (d.failed_sql || []).map(f => `
     <details class="attempt"><summary>Attempt ${f.attempt} failed at ${esc(f.stage.replace("_", " "))}, and was rewritten</summary>
       <div class="err">${esc(f.error)}</div><pre>${highlight(f.sql || "")}</pre></details>`).join("");
@@ -606,12 +739,14 @@ function render(data) {
 // ---------------------------------------------------------------------------
 // Copy SQL and Download CSV
 // ---------------------------------------------------------------------------
+// Show a short message on a button for 1.4 seconds, then restore its text.
 function flash(button, text) {
   const was = button.textContent;
   button.textContent = text;
   setTimeout(() => { button.textContent = was; }, 1400);
 }
 
+// Copy SQL: put the SQL on the clipboard.
 $("copy").onclick = async () => {
   const sql = last?.details?.sql;
   if (!sql) return;
@@ -619,15 +754,20 @@ $("copy").onclick = async () => {
   catch { flash($("copy"), "Copy failed"); }
 };
 
+// Download CSV: build a CSV file from the result table and download it.
 $("csv").onclick = () => {
   const t = (last?.tables || [])[0];
   if (!t) return;
+  // Quote a value if it contains a comma, quote or line break ("" escapes a quote).
   const cell = v => {
     const s = v === null || v === undefined ? "" : String(v);
     return /[",\n\r]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
   };
+  // Header line + one line per row.
   const csv = [t.columns, ...t.rows].map(r => r.map(cell).join(",")).join("\r\n");
+  // File name made from the question, e.g. "which-distributor-has-the-highest.csv".
   const name = ($("q").value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60).replace(/^-|-$/g, "") || "result") + ".csv";
+  // A temporary link pointing at the CSV data; clicking it starts the download.
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
   a.download = name;
@@ -638,38 +778,54 @@ $("csv").onclick = () => {
 // ---------------------------------------------------------------------------
 // Asking
 // ---------------------------------------------------------------------------
+// Send the question to POST /query and show the answer.
 async function askQuestion() {
+  // The typed question without surrounding spaces.
   const question = $("q").value.trim();
+  // Nothing typed: do nothing.
   if (!question) return;
+  // The Ask button: disable it and show a spinner while waiting.
   const go = $("go");
   go.disabled = true;
   go.innerHTML = '<span class="spinner"></span>Thinking';
   $("trace").innerHTML = '<li class="skip"><span class="node"></span><div class="body">Working through the pipeline (usually 15–40 seconds)…</div></li>';
+  // try/catch/finally: if anything fails, show an error; always re-enable the button at the end.
   try {
+    // POST the question and the conversation ID (null for a new conversation) as JSON.
     const res = await fetch("/query", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question, conversation_id: conversationId }),
     });
+    // Read the JSON reply (or make an error object if it is not JSON).
     const data = await res.json().catch(() => ({ detail: res.statusText }));
+    // An HTTP error (e.g. 401 sign-in required) jumps to catch.
     if (!res.ok) throw new Error(data.detail || res.statusText);
+    // Keep the conversation ID so the next question is a follow-up.
     conversationId = data.conversation_id;
     turns += 1;
     $("conv").textContent = `Conversation ${conversationId.slice(0, 8)} · question ${turns} · follow-ups build on earlier answers`;
+    // Show the answer.
     render(data);
+  // Show any error as a failed answer.
   } catch (err) {
     render({ status: "failed", message: "Server error: " + err.message, details: {} });
+  // Always: re-enable the Ask button.
   } finally {
     go.disabled = false;
     go.textContent = "Ask";
   }
 }
 
+// Wire up the Ask button, the Enter key, and "New conversation".
 $("go").onclick = askQuestion;
 $("q").addEventListener("keydown", e => { if (e.key === "Enter") askQuestion(); });
 $("reset").onclick = () => { conversationId = null; turns = 0; $("conv").textContent = "New conversation started."; };
 
+// ON PAGE LOAD: show the empty number strip, then load the graph, the row counts and the user.
 renderStats({});
+// Load the schema graph once and draw it.
 fetch("/schema-graph").then(r => r.json()).then(g => { schema = g; drawGraph(); });
+// Load the row counts once, fill the records list and redraw the graph (tooltips show counts).
 fetch("/table-counts").then(r => r.json()).then(c => {
   recTables = c.tables;
   counts = Object.fromEntries(c.tables.map(t => [t.table, t.rows]));

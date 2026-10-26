@@ -75,7 +75,15 @@ from dotenv import load_dotenv
 # you run it from.
 SCHEMA_FOLDER = Path(__file__).parent
 
+# NOTE FOR FRESHERS: in this Azure version of the project, "the Docker Postgres"
+# in the HOW TO RUN text above means your Azure Database for PostgreSQL server.
+# All you need is DATA_DB_URL in .env pointing at it. Then run, from the project folder:
+#     Windows (PowerShell):  uv run python dataplane/schema/apply_schema.py
+#     Mac / Linux:           uv run python dataplane/schema/apply_schema.py
 
+
+# "def main()" defines the function that does all the work.
+# "-> None" means it gives nothing back; it only changes the database.
 def main() -> None:
     """Run every numbered .sql file in this folder, in name order."""
 
@@ -109,6 +117,7 @@ def main() -> None:
     # ROLLS BACK (undoes) everything, and the database is left exactly as
     # it was before the run. We never end up with half a schema.
     with psycopg.connect(database_url) as conn:
+        # Loop over the 4 files one at a time, in the sorted order found above.
         for sql_file in sql_files:
             # Show progress, so a slow or failing file is easy to spot.
             print(f"Running {sql_file.name} ...")
@@ -132,4 +141,5 @@ def main() -> None:
 # ("uv run python dataplane/schema/apply_schema.py"), not when another file
 # imports it. That lets tests import main() later without running it.
 if __name__ == "__main__":
+    # Run the function defined above.
     main()

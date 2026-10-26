@@ -4,22 +4,46 @@ drawn from the same elements (to check the layout before opening it in Excalidra
 
     python3 docs/architecture/build_architecture.py docs/architecture/architecture.excalidraw docs/architecture/architecture-preview.svg
 """
+# HOW TO RUN (from the project folder) - regenerates the diagram files:
+#   Windows (PowerShell):
+#     uv run python docs/architecture/build_architecture.py docs/architecture/architecture.excalidraw docs/architecture/architecture-preview.svg
+#   Mac / Linux:
+#     uv run python docs/architecture/build_architecture.py docs/architecture/architecture.excalidraw docs/architecture/architecture-preview.svg
+# Argument 1 = the Excalidraw file to write; argument 2 = the SVG preview to write.
+# Open the .excalidraw file at https://excalidraw.com (File -> Open) to view or edit it.
+#
+# json: writes the Excalidraw file (it is JSON).
 import json
+
+# random: Excalidraw gives every shape a random "seed" for its hand-drawn look.
 import random
+
+# sys.argv: the file names given on the command line.
 import sys
+
+# escape: makes text safe inside the SVG (e.g. "<" -> "&lt;").
 from html import escape
+
+# pairwise([a, b, c]) gives (a, b), (b, c): used to draw arrows between consecutive steps.
 from itertools import pairwise
+
+# Path: writes the output files.
 from pathlib import Path
 
+# A fixed seed, so every run draws exactly the same diagram.
 random.seed(7)
 EL = []          # excalidraw elements
+# A counter used to give every element a unique id.
 _n = 0
 
 # ---------------------------------------------------------------------------
 # Palette (Excalidraw's own colours)
 # ---------------------------------------------------------------------------
+# Near-black, for normal text and lines.
 INK = "#1e1e1e"
+# Grey, for secondary text.
 MUTED = "#495057"
+# kind -> (stroke colour, fill colour) for each kind of box.
 C = {
     "openai":  ("#6741d9", "#e5dbff"),   # Azure OpenAI
     "vector":  ("#0c8599", "#c3fae8"),   # pgvector
@@ -34,12 +58,18 @@ C = {
 }
 
 
+# Return a new unique id: "el1", "el2", ...
 def _id():
+    # "global" lets this function change the module-level counter _n.
     global _n
+    # Increase the counter by one.
     _n += 1
+    # Build the id text.
     return f"el{_n}"
 
 
+# Create one Excalidraw element (rectangle, ellipse, text, arrow) with all the
+# fields Excalidraw expects, add it to EL, and return it. **kw = optional extras.
 def _base(kind, x, y, w, h, stroke=INK, bg="transparent", **kw):
     e = {
         "id": _id(), "type": kind, "x": x, "y": y, "width": w, "height": h, "angle": 0,
@@ -51,28 +81,39 @@ def _base(kind, x, y, w, h, stroke=INK, bg="transparent", **kw):
         "seed": random.randint(1, 2**31), "version": 1, "versionNonce": random.randint(1, 2**31),
         "isDeleted": False, "boundElements": [], "updated": 1, "link": None, "locked": False,
     }
+    # Add it to the drawing.
     EL.append(e)
+    # Return it so callers can change it further.
     return e
 
 
+# Rough width and height of a text block: longest line x size x 0.56 wide, lines x 1.25 tall.
 def _measure(text, size):
     lines = text.split("\n")
     return max(len(l) for l in lines) * size * 0.56, len(lines) * size * 1.25
 
 
+# Place free text at (x, y). family: 1 = hand-drawn, 2 = normal, 3 = monospace.
 def text(x, y, s, size=16, color=INK, family=2, align="left", w=None):
+    # Its size.
     tw, th = _measure(s, size)
+    # A text element ...
     e = _base("text", x, y, w or tw, th, stroke=color, sw=1, rough=0)
+    # ... with the text-specific fields.
     e.update({"text": s, "originalText": s, "fontSize": size, "fontFamily": family,
               "textAlign": align, "verticalAlign": "top", "containerId": None,
               "lineHeight": 1.25, "autoResize": True})
     return e
 
 
+# A coloured box (rectangle or ellipse) with an optional centred label inside it.
 def box(x, y, w, h, label="", kind="python", size=16, family=2, style="solid", sw=2,
         shape="rectangle", bold_bg=None, valign="middle", label_color=None):
+    # The colours for this kind of box.
     stroke, bg = C[kind]
+    # The box itself.
     e = _base(shape, x, y, w, h, stroke=stroke, bg=bold_bg or bg, style=style, sw=sw)
+    # Add the label as a text element bound to the box (it moves with the box in Excalidraw).
     if label:
         tw, th = _measure(label, size)
         t = _base("text", x + (w - tw) / 2, y + (h - th) / 2, tw, th,
@@ -80,14 +121,19 @@ def box(x, y, w, h, label="", kind="python", size=16, family=2, style="solid", s
         t.update({"text": label, "originalText": label, "fontSize": size, "fontFamily": family,
                   "textAlign": "center", "verticalAlign": valign, "containerId": e["id"],
                   "lineHeight": 1.25, "autoResize": True})
+        # Tell the box about its label.
         e["boundElements"].append({"type": "text", "id": t["id"]})
     return e
 
 
+# A large, faint rectangle with a title (and optional subtitle): groups related boxes.
 def frame(x, y, w, h, title, kind="azure", style="dashed", size=20, sub=None):
     stroke, bg = C[kind]
+    # The frame rectangle, 55% opaque.
     f = _base("rectangle", x, y, w, h, stroke=stroke, bg=bg, style=style, sw=2, opacity=55)
+    # Its title in the top-left corner.
     text(x + 16, y + 10, title, size=size, color=stroke, family=1)
+    # Optional smaller subtitle under the title.
     if sub:
         text(x + 16, y + 10 + size * 1.35, sub, size=13, color=MUTED)
     return f
@@ -95,36 +141,49 @@ def frame(x, y, w, h, title, kind="azure", style="dashed", size=20, sub=None):
 
 def _edge_point(el, toward):
     """Point on el's border in the direction of point `toward`."""
+    # The element's centre.
     cx, cy = el["x"] + el["width"] / 2, el["y"] + el["height"] / 2
+    # Direction from the centre to the target point.
     dx, dy = toward[0] - cx, toward[1] - cy
+    # Target is the centre itself: just return the centre.
     if dx == 0 and dy == 0:
         return cx, cy
     sx = (el["width"] / 2) / abs(dx) if dx else float("inf")
     sy = (el["height"] / 2) / abs(dy) if dy else float("inf")
+    # Scale so the point lands on whichever edge (side or top/bottom) is hit first.
     s = min(sx, sy)
+    # The point on the border.
     return cx + dx * s, cy + dy * s
 
 
 def arrow(a, b, label=None, color=INK, style="solid", pts=None, start=None, end=None, size=13,
           label_at=None, both=False):
     """Arrow from element a to element b. pts = optional absolute waypoints between them."""
+    # No waypoints given -> an empty list.
     pts = pts or []
     first_target = pts[0] if pts else (b["x"] + b["width"] / 2, b["y"] + b["height"] / 2)
     last_source = pts[-1] if pts else (a["x"] + a["width"] / 2, a["y"] + a["height"] / 2)
+    # Start point: given, or on a's border facing the next point.
     p0 = start or _edge_point(a, first_target)
+    # End point: given, or on b's border facing the previous point.
     p1 = end or _edge_point(b, last_source)
+    # The full route: start, waypoints, end.
     path = [p0, *pts, p1]
     xs, ys = [p[0] for p in path], [p[1] for p in path]
     e = _base("arrow", p0[0], p0[1], max(xs) - min(xs), max(ys) - min(ys), stroke=color,
               style=style, sw=2, round=False)
     e["roundness"] = {"type": 2}
+    # Excalidraw stores arrow points relative to the start point.
     e["points"] = [[px - p0[0], py - p0[1]] for px, py in path]
     e["lastCommittedPoint"] = None
+    # Bind both ends to their boxes, so the arrow follows them when moved.
     e["startBinding"] = {"elementId": a["id"], "focus": 0, "gap": 4}
     e["endBinding"] = {"elementId": b["id"], "focus": 0, "gap": 4}
+    # both=True draws an arrowhead at the start too.
     e["startArrowhead"] = "arrow" if both else None
     e["endArrowhead"] = "arrow"
     e["elbowed"] = False
+    # Tell both boxes about the arrow.
     a["boundElements"].append({"type": "arrow", "id": e["id"]})
     b["boundElements"].append({"type": "arrow", "id": e["id"]})
     if label:
@@ -134,10 +193,13 @@ def arrow(a, b, label=None, color=INK, style="solid", pts=None, start=None, end=
         else:
             mid = path[len(path) // 2] if len(path) > 2 else ((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2)
             mx, my = mid
+        # Size of the label text.
         tw, th = _measure(label, size)
+        # A white box behind the label, so the line does not run through the text.
         bgbox = _base("rectangle", mx - tw / 2 - 6, my - th / 2 - 3, tw + 12, th + 6,
                       stroke="transparent", bg="#ffffff", sw=1, rough=0)
         bgbox["strokeColor"] = "#ffffff"
+        # The label itself, centred on (mx, my).
         text(mx - tw / 2, my - th / 2, label, size=size, color=color, align="center")
     return e
 
@@ -145,6 +207,7 @@ def arrow(a, b, label=None, color=INK, style="solid", pts=None, start=None, end=
 # ===========================================================================
 # LAYOUT
 # ===========================================================================
+# The diagram's main title and subtitle.
 text(40, 24, "Azure GraphRAG on Databases — end-to-end architecture", size=36, family=1)
 text(42, 76, "Plain-English questions over a 20-table mutual fund database. Tables are graph nodes, joins are hops. "
              "Every answer = a table + commentary + the exact, checked, read-only SQL.", size=16, color=MUTED)
@@ -152,21 +215,25 @@ text(42, 76, "Plain-English questions over a 20-table mutual fund database. Tabl
 # ---------------------------------------------------------------------------
 # ① BUILD TIME (left)
 # ---------------------------------------------------------------------------
+# Position (x, y) and size (width, height) of the left "build time" frame.
 AX, AY, AW, AH = 40, 130, 640, 1110
 frame(AX, AY, AW, AH, "① BUILD TIME  ·  run once, then after changes", kind="python",
       sub="Your laptop  ·  uv run …")
 
 text(AX + 40, AY + 80, "Data plane  (dataplane/)", size=18, color=C["sql"][0], family=1)
+# The three data-plane scripts, top to bottom, with an explanation to the right of each.
 dp1 = box(AX + 40, AY + 115, 250, 62, "scripts/pg_setup.py", kind="sql", size=15)
 dp2 = box(AX + 40, AY + 207, 250, 62, "schema/apply_schema.py", kind="sql", size=15)
 dp3 = box(AX + 40, AY + 299, 250, 62, "generator.run", kind="sql", size=15)
 text(AX + 312, AY + 122, "Create mf_data + agent_meta,\nswitch on pgvector + AGE", size=14, color=MUTED)
 text(AX + 312, AY + 214, "20 tables, keys, indexes,\n60 monthly partitions", size=14, color=MUTED)
 text(AX + 312, AY + 300, "Synthetic AMC data + 6 planted\nstories → 1,132,667 rows (COPY)", size=14, color=MUTED)
+# Arrows show the order to run them in.
 arrow(dp1, dp2, color=C["sql"][0])
 arrow(dp2, dp3, color=C["sql"][0])
 
 text(AX + 40, AY + 420, "Metadata pipeline  (metadata/)", size=18, color=C["openai"][0], family=1)
+# The three metadata pipeline steps (build -> review -> publish).
 mp1 = box(AX + 40, AY + 455, 250, 74, "metadata.build", kind="openai", size=15)
 mp2 = box(AX + 40, AY + 569, 250, 74, "metadata.review\n👤 human approves", kind="human", size=15)
 mp3 = box(AX + 40, AY + 683, 250, 74, "metadata.publish", kind="openai", size=15)
@@ -176,6 +243,7 @@ text(AX + 312, AY + 683, "Approved notes + values →\nembeddings (text-embeddin
 arrow(mp1, mp2, color=C["openai"][0])
 arrow(mp2, mp3, color=C["human"][0])
 
+# A box summarising the config/ files and the tests.
 box(AX + 40, AY + 810, 570, 120,
     "config/   models · agent · metrics (approved business definitions)\n"
     "generator · pii · metadata\n\n"
@@ -192,25 +260,32 @@ text(AX + 40, AY + 1050, "each: 100% of values match, no foreign key declared", 
 # ---------------------------------------------------------------------------
 # ② RUN TIME (right)
 # ---------------------------------------------------------------------------
+# Position and size of the right "run time" frame.
 BX, BY, BW, BH = 730, 130, 1530, 1110
 frame(BX, BY, BW, BH, "② RUN TIME  ·  every question", kind="azure", style="dashed",
       sub="Azure subscription  ·  resource group fundgraph-rg-1")
 
 SX, SY, SW_, SH = BX + 270, BY + 80, 760, 1010          # App Service frame: x 1000..1760
+# The user, drawn as an ellipse.
 user = box(BX + 40, BY + 62, 200, 62, "👤 User · browser", kind="python", size=16, shape="ellipse")
+# Entra ID sign-in sits between the user and the app.
 entra = box(BX + 40, SY + 70, 200, 110, "Microsoft Entra ID\nsign-in (Easy Auth)\nadds X-MS-CLIENT-\nPRINCIPAL headers", kind="entra", size=14)
 arrow(user, entra, label="HTTPS", color=C["entra"][0], label_at=(BX + 175, (BY + 124 + SY + 70) / 2))
 
 frame(SX, SY, SW_, SH, "Azure App Service  ·  Linux · Python 3.13 · B1", kind="azure", style="solid",
       sub="startup.sh → uvicorn api.main:app  ·  1 worker  ·  health check /health")
+# The web page and the API, side by side inside App Service.
 ui = box(SX + 30, SY + 85, 330, 78, "Web UI  (ui/index.html)\ntrace · graph · records · SQL", kind="python", size=14)
 api = box(SX + 400, SY + 85, 330, 78, "FastAPI  (api/main.py)\n/query · /schema-graph · /table-counts", kind="python", size=14)
+# A two-way arrow: the page calls the API and gets JSON back.
 arrow(ui, api, color=INK, both=True)
+# The y position shared by the horizontal arrows at this level.
 uy = SY + 124
 arrow(entra, ui, color=C["entra"][0], start=(BX + 240, uy), end=(SX + 30, uy))
 
 GX, GY, GW, GH = SX + 30, SY + 195, 700, 800                # agent frame: x 1030..1730
 frame(GX, GY, GW, GH, "LangGraph agent  ·  11 fixed steps  (agent/)", kind="python", style="solid", size=18)
+# The 11 agent steps: (number + name, short description, colour kind).
 steps = [
     ("1   guard_input", "Prompt Shields: block prompt attacks", "safety"),
     ("2   understand", "rewrite · intent · period · metrics · data needed", "openai"),
@@ -224,13 +299,17 @@ steps = [
     ("10  write_commentary", "plain-English explanation", "openai"),
     ("11  remember", "keep question + SQL for follow-ups", "python"),
 ]
+# The step boxes, in order.
 step_el = []
+# One box per step, 64 pixels apart vertically.
 for i, (name, desc, kind) in enumerate(steps):
     y = GY + 56 + i * 64
     b = box(GX + 24, y, 652, 52, f"{name.split()[0]} · {name.split()[1]}  —  {desc}", kind=kind, size=14, family=3)
     step_el.append(b)
+# An arrow from each step to the next.
 for a, b in pairwise(step_el):
     arrow(a, b, color=MUTED)
+# A "lambda" is a tiny one-line function: cy(i) = the centre y of step i.
 cy = lambda i: step_el[i]["y"] + 26                         # centre y of step i
 SL, SR = GX + 24, GX + 676                                  # step box left / right edges
 
@@ -243,11 +322,13 @@ text(GX + 24, GY + GH - 34, "↺  check_sql or run_sql fails → back to write_s
      size=13, color=C["graph"][0])
 
 # Right-hand column: Application Insights, Content Safety, Azure OpenAI, legend
+# x position of the right-hand column of Azure services.
 RX = 1820
 ai = box(RX, SY + 70, 400, 100, "Application Insights\nOpenTelemetry: a span per request\nand per agent step", kind="insight", size=14)
 cs = box(RX, cy(0) - 50, 400, 100, "Azure AI Content Safety\nPrompt Shields", kind="safety", size=16)
 oai = box(RX, cy(1) + 90, 400, 150, "Azure OpenAI  (resource endpoint)\n\ngpt-5.1: understand · SQL · commentary\ntext-embedding-3-small: 1,536-dim vectors", kind="openai", size=14)
 
+# Arrows from the app/steps to Application Insights, Content Safety and Azure OpenAI.
 arrow(api, ai, label="traces", color=C["insight"][0], style="dashed",
       start=(SX + 730, uy), pts=[(1790, uy)], end=(RX, uy), label_at=(1790, uy - 18))
 arrow(step_el[0], cs, label="screen question", color=C["safety"][0],
@@ -256,12 +337,15 @@ arrow(step_el[1], oai, label="steps 2 · 6 · 10", color=C["openai"][0],
       start=(SR, cy(1)), pts=[(1792, cy(1)), (1792, oai["y"] + 75)], end=(RX, oai["y"] + 75),
       label_at=(1792, oai["y"] + 20))
 
+# The colour legend, under the Azure OpenAI box.
 LX, LY = RX, oai["y"] + 190
 text(LX, LY, "Step colour = what it uses", size=16, family=1)
 legend = [("Azure OpenAI", "openai"), ("pgvector search", "vector"), ("Apache AGE graph", "graph"),
           ("PostgreSQL SQL", "sql"), ("Content Safety", "safety"), ("Python only", "python"),
           ("Human approval", "human")]
+# Two columns of small coloured squares with labels.
 for i, (lbl, kind) in enumerate(legend):
+    # % = remainder (column 0 or 1); // = whole-number division (row).
     col, row = i % 2, i // 2
     box(LX + col * 200, LY + 34 + row * 38, 26, 26, "", kind=kind, sw=2)
     text(LX + 36 + col * 200, LY + 38 + row * 38, lbl, size=14)
@@ -269,11 +353,13 @@ for i, (lbl, kind) in enumerate(legend):
 # ---------------------------------------------------------------------------
 # ③ DATA (bottom)
 # ---------------------------------------------------------------------------
+# Position and size of the bottom "data" frame (the PostgreSQL server).
 DX, DY, DW, DH = 40, 1300, 2220, 420
 frame(DX, DY, DW, DH, "③ Azure Database for PostgreSQL  ·  Flexible Server  ·  one server, two databases",
       kind="sql", style="solid",
       sub="PostgreSQL 16 · Burstable B1ms · Central India · azure.extensions = VECTOR, AGE · shared_preload_libraries ⊃ age · sslmode=require")
 
+# The mf_data frame inside it, with one box per group of tables.
 MX, MY, MW, MH = DX + 30, DY + 90, 1040, 300
 mf = frame(MX, MY, MW, MH, "mf_data  —  business data, read-only to the agent  ·  20 tables · 1,132,667 rows",
            kind="sql", style="solid", size=17)
@@ -283,9 +369,12 @@ groups = [
     "Investors\n\ndistributors · investors\nfolios · sip_registrations\n\nPII: name, email, mobile,\nPAN, DOB, bank (masked)",
     "Transactions\n\ntransactions\n683,159 rows\n60 monthly partitions\n(date filter required)",
 ]
+# The width of each of the 4 group boxes (minus margins and 3 gaps of 14).
 gw = (MW - 50 - 3 * 14) / 4
+# Draw the 4 group boxes side by side.
 mf_boxes = [box(MX + 25 + i * (gw + 14), MY + 60, gw, 215, g, kind="sql", size=13) for i, g in enumerate(groups)]
 
+# The agent_meta frame, to the right of mf_data, with its 4 stores.
 KX, KY, KW, KH = MX + MW + 40, MY, DW - MW - 100, 300
 am = frame(KX, KY, KW, KH, "agent_meta  —  what the agent knows about mf_data", kind="openai", style="solid", size=17)
 kw = (KW - 50 - 3 * 14) / 4
@@ -298,6 +387,7 @@ k4 = box(kx(3), KY + 60, kw, 215, "meta_embeddings\npgvector · HNSW\n\n1,415 ve
 # ---------------------------------------------------------------------------
 # Arrows between the layers
 # ---------------------------------------------------------------------------
+# The arrows below connect the layers; each uses waypoints so lines do not cross boxes.
 CH = 1270                                                   # channel between run time and data
 # Build: load data (down the left margin)
 arrow(dp3, mf, label="load (COPY)", color=C["sql"][0],
@@ -309,68 +399,95 @@ arrow(mp3, am, label="publish: embeddings + graph", color=C["openai"][0],
       pts=[(AX + AW - 20, mp3["y"] + 37), (AX + AW - 20, CH + 12), (kx(1) + kw / 2, CH + 12)],
       end=(kx(1) + kw / 2, KY), label_at=(800, CH + 12))
 # Run: read-only SQL (left lane, down into transactions)
+# x position of the vertical lane for the SQL arrow.
 lane_sql = 985
 arrow(step_el[7], mf_boxes[3], label="read-only SQL", color=C["sql"][0],
       start=(SL, cy(7) + 12), pts=[(lane_sql, cy(7) + 12)], end=(lane_sql, mf_boxes[3]["y"]),
       label_at=(lane_sql, CH - 22))
 # Run: AGE route (inner right lane, straight down into schema_graph)
+# x position of the lane for the graph arrow.
 lane_graph = kx(2) + 50
 arrow(step_el[4], k3, label="Cypher route", color=C["graph"][0],
       start=(SR, cy(4)), pts=[(lane_graph, cy(4))], end=(lane_graph, k3["y"]),
       label_at=(lane_graph, CH - 22))
 # Run: vector search (outer right lane, then right into meta_embeddings)
+# x position of the lane for the vector-search arrow.
 lane_vec = 1778
 arrow(step_el[3], k4, label="vector search (steps 3–4)", color=C["vector"][0],
       start=(SR, cy(3)), pts=[(lane_vec, cy(3)), (lane_vec, CH - 5), (kx(3) + kw / 2, CH - 5)],
       end=(kx(3) + kw / 2, k4["y"]), label_at=(kx(3) + kw / 2 - 40, CH - 25))
 
+# The complete Excalidraw document: every element plus a white background.
 doc = {"type": "excalidraw", "version": 2, "source": "https://excalidraw.com",
        "elements": EL, "appState": {"viewBackgroundColor": "#ffffff", "gridSize": None}, "files": {}}
+# Write it to the first file name given on the command line.
 Path(sys.argv[1]).write_text(json.dumps(doc, indent=1, ensure_ascii=False))
 
 
 # ===========================================================================
 # SVG preview (same coordinates)
 # ===========================================================================
+# Draw the same elements as a simple SVG image (for a quick preview without Excalidraw).
 def svg():
+    # Every left and right edge ...
     xs = [e["x"] for e in EL] + [e["x"] + e["width"] for e in EL]
+    # ... and every top and bottom edge ...
     ys = [e["y"] for e in EL] + [e["y"] + e["height"] for e in EL]
+    # ... give the picture's total size (plus a 40-pixel margin).
     W, H = max(xs) + 40, max(ys) + 40
+    # The SVG opening tag, a white background, and an arrowhead shape ("marker") reused by every arrow.
     out = [(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" '
             f'font-family="Helvetica, Arial, sans-serif"><rect width="100%" height="100%" fill="#fff"/>'),
            ('<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" '
             'orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker></defs>')]
+    # Excalidraw font family number -> an SVG font.
     fam = {1: "Comic Sans MS, cursive", 2: "Helvetica, Arial, sans-serif", 3: "Menlo, monospace"}
+    # First pass: shapes and arrows (drawn first, so text sits on top).
     for e in EL:
+        # Dashed lines: 8 pixels drawn, 6 pixels gap.
         dash = ' stroke-dasharray="8 6"' if e["strokeStyle"] == "dashed" else ""
+        # Opacity as a fraction 0..1.
         op = e["opacity"] / 100
+        # Rectangle -> <rect> (rounded corners if roundness is set).
         if e["type"] == "rectangle":
             fill = "none" if e["backgroundColor"] == "transparent" else e["backgroundColor"]
             out.append(f'<rect x="{e["x"]}" y="{e["y"]}" width="{e["width"]}" height="{e["height"]}" rx="{12 if e["roundness"] else 0}" '
                        f'fill="{fill}" fill-opacity="{op}" stroke="{e["strokeColor"]}" stroke-width="{e["strokeWidth"]}"{dash}/>')
+        # Ellipse -> <ellipse>.
         elif e["type"] == "ellipse":
             out.append(f'<ellipse cx="{e["x"] + e["width"]/2}" cy="{e["y"] + e["height"]/2}" rx="{e["width"]/2}" ry="{e["height"]/2}" '
                        f'fill="{e["backgroundColor"]}" stroke="{e["strokeColor"]}" stroke-width="2"/>')
+        # Arrow -> <polyline> through all its points, with arrowheads.
         elif e["type"] == "arrow":
             p = " ".join(f'{e["x"] + px},{e["y"] + py}' for px, py in e["points"])
             start = ' marker-start="url(#ah)"' if e["startArrowhead"] else ""
             out.append(f'<polyline points="{p}" fill="none" stroke="{e["strokeColor"]}" stroke-width="2"{dash}{start} marker-end="url(#ah)"/>')
+    # Second pass: text.
     for e in EL:
+        # Skip anything that is not text.
         if e["type"] != "text":
             continue
+        # SVG has no multi-line text, so each line becomes its own <text>.
         lines = e["text"].split("\n")
+        # The font size.
         size = e["fontSize"]
+        # Centred text is anchored at the middle; other text at its left edge.
         if e["textAlign"] == "center":
             anchor, x = "middle", e["x"] + e["width"] / 2
         else:
             anchor, x = "start", e["x"]
+        # One <text> per line, 1.25 x the font size apart.
         for i, line in enumerate(lines):
             y = e["y"] + size * (1 + i * 1.25)
             out.append(f'<text x="{x}" y="{y}" font-size="{size}" font-family="{fam[e["fontFamily"]]}" '
                        f'fill="{e["strokeColor"]}" text-anchor="{anchor}">{escape(line)}</text>')
+    # Close the SVG.
     out.append("</svg>")
+    # All the pieces as one text.
     return "\n".join(out)
 
 
+# Write the SVG to the second file name given on the command line.
 Path(sys.argv[2]).write_text(svg())
+# Report how many elements were drawn.
 print(len(EL), "elements")
