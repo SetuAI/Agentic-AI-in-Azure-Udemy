@@ -1,0 +1,19 @@
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "incident-desk-key",
+      "description": "Incident Desk MCP API key (the MCP_API_KEY value)",
+      "password": true
+    }
+  ],
+  "servers": {
+    "incident-desk": {
+      "type": "http",
+      "url": "http://127.0.0.1:8000/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:incident-desk-key}"
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+# =============================================================================
+# .gitignore
+# =============================================================================
+# Every line below is a file or folder name that git must NEVER commit.
+# Lines starting with "#" (like this one) are comments and are ignored by git.
+# =============================================================================
+
+# Your real secrets (Azure IDs, the client secret, the API key). Never push it to GitHub.
+.env
+# The Python virtual environment created by "uv sync" (thousands of library files).
+.venv/
+# Compiled Python files that Python creates automatically when it runs code.
+__pycache__/
+# Cache folder pytest creates to remember which tests failed last time.
+.pytest_cache/
+# Hidden folder-settings file that macOS Finder drops into every folder.
+.DS_Store
+# The generated logs. Anyone can rebuild them with: uv run python -m log_generator.generate
+data/
+# The zip file made when deploying to App Service.
+app.zip

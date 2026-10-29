@@ -1,0 +1,18 @@
+# =============================================================================
+# requirements.txt  -  the libraries Azure App Service installs
+# =============================================================================
+# On your laptop, uv reads pyproject.toml instead. App Service reads THIS
+# file when you upload the code, so it must list the same libraries.
+# If you add a library to pyproject.toml, add it here too.
+# =============================================================================
+
+# Signs in to Azure (on App Service: with the web app's managed identity).
+azure-identity>=1.27.0
+# Searches Log Analytics with KQL.
+azure-monitor-query>=2.0.0
+# The official MCP library (version 2 or newer).
+mcp>=2.3.0
+# Reads .env files (on App Service there is none, and that is fine).
+python-dotenv>=1.0.0
+# The web server that runs the MCP server.
+uvicorn>=0.30.0

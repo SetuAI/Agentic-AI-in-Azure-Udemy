@@ -1,0 +1,48 @@
+# =============================================================================
+# pyproject.toml  -  the project's "ID card" for Python tooling
+# =============================================================================
+# "uv" reads this file to know which Python version and which libraries the
+# project needs. To install everything into a local .venv folder, run:
+#     uv sync
+# Lines starting with "#" are comments; they are ignored.
+# =============================================================================
+
+# [project] = basic facts about this project.
+[project]
+# The project's name (only used by packaging tools, not imported anywhere).
+name = "azure-mcp-incident-logs"
+# The project's version number.
+version = "0.1.0"
+# One line saying what the project is.
+description = "An MCP server that lets AI apps investigate production incident logs in Azure Log Analytics"
+# The Python version needed. 3.12 is what we choose on Azure App Service too.
+requires-python = ">=3.12"
+# The libraries the project needs to run.
+dependencies = [
+    # Signs in to Azure (with the Entra ID app on your laptop, or the managed identity on Azure).
+    "azure-identity>=1.27.0",
+    # Uploads our generated logs into Log Analytics (loader/send_logs.py).
+    "azure-monitor-ingestion>=1.1.0",
+    # Searches Log Analytics with KQL (mcp_server/tools.py).
+    "azure-monitor-query>=2.0.0",
+    # The official MCP library: builds the MCP server (mcp_server/server.py). Version 2 or newer.
+    "mcp>=2.3.0",
+    # Reads the .env file into environment variables (config/settings.py).
+    "python-dotenv>=1.0.0",
+    # The web server that runs the MCP server.
+    "uvicorn>=0.30.0",
+]
+
+# Extra libraries needed only by developers (not installed on Azure).
+[dependency-groups]
+dev = [
+    # Test runner: run "uv run pytest" to execute the tests/ folder.
+    "pytest>=8.0.0",
+]
+
+# Settings for pytest.
+[tool.pytest.ini_options]
+# Put the project folder on the import path, so tests can "import mcp_server", "import log_generator", ...
+pythonpath = ["."]
+# Look for tests only inside the tests/ folder.
+testpaths = ["tests"]
