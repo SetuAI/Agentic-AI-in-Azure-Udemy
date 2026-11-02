@@ -30,6 +30,10 @@
   .wrap { max-width: 1240px; margin: 0 auto; padding: 28px 16px 80px; }
   header h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -.01em; }
   header p { margin: 0; color: var(--muted); }
+  /* NEW: the signed-in user, top right of the header (filled in from /api/me) */
+  header { position: relative; }
+  .user { position: absolute; top: 4px; right: 0; font-size: 13px; color: var(--muted); }
+  .user a { color: var(--accent); margin-left: 10px; text-decoration: none; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
           box-shadow: var(--shadow); padding: 20px; }
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
@@ -140,6 +144,7 @@
 <body>
 <div class="wrap">
   <header>
+    <div class="user" id="user"></div><!-- NEW: who is signed in, and a Sign out link on Azure -->
     <h1>Annual Report RAG</h1>
     <p>Ask a question comparing FY2025 and FY2026. See what hybrid search found, how the semantic ranker re-ordered it, and the answer it produced.</p>
   </header>
@@ -205,6 +210,12 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 /* ---------- setup ---------- */
+// NEW: show who is signed in. On a laptop this is "local"; on Azure it is the Microsoft account,
+// and /.auth/logout (provided by App Service sign-in) signs them out.
+fetch("/api/me").then(r => r.json()).then(u => {
+  $("user").innerHTML = u.name === "local" ? "local"
+    : `${esc(u.name)}<a href="/.auth/logout">Sign out</a>`;
+}).catch(() => {});
 fetch("/api/config").then(r => r.json()).then(cfg => {
   company = cfg.companies.includes("Infosys") ? "Infosys" : cfg.companies[0];
   $("companies").innerHTML = cfg.companies.map(c =>
@@ -315,7 +326,8 @@ function renderAnswer(r) {
         </div>
       </div>`;
   } else {
-    const decided = r.review_decision ? `<span class="verdict v-${r.review_decision}">reviewer ${esc(r.review_decision)}</span>` : "";
+    // CHANGED: also names the reviewer (sent by /api/review as reviewed_by; "local" on a laptop)
+    const decided = r.review_decision ? `<span class="verdict v-${r.review_decision}">${esc(r.reviewed_by || "reviewer")} ${esc(r.review_decision)}</span>` : "";
     body = `<div class="answer-body">${md(r.final_answer)}</div>${flags}
       ${r.draft_answer && r.draft_answer !== r.final_answer
         ? `<details class="draft"><summary>Model's original draft</summary><div class="answer-body">${md(r.draft_answer)}</div></details>` : ""}`;

@@ -59,6 +59,15 @@ from graph.nodes import (                       # the seven steps
 )
 from graph.state import GraphState              # the shape of the state
 from guardrails.factual import GROUNDED         # the verdict that means "no review needed"
+from telemetry import tracer                    # NEW: records each step in Application Insights (a no-op if monitoring is off)
+
+
+def traced(name: str, node):
+    """NEW: wrap one node so each run of it is recorded as a span called node.<name>, with its duration."""
+    def run(state: GraphState) -> dict:         # LangGraph calls this instead of the node itself
+        with tracer.start_as_current_span(f"node.{name}"):  # open a span; it closes, and records the time, when the node returns
+            return node(state)                  # run the real node, unchanged, and hand back what it returned
+    return run                                  # the wrapped node: same input, same output, plus a span
 
 
 def route_after_input_guardrail(state: GraphState) -> str:
@@ -77,13 +86,13 @@ def build_graph(enable_interrupt: bool = True, checkpointer=None):
     """Assemble the pipeline and return a runnable graph."""
     builder = StateGraph(GraphState)            # a graph whose state has GraphState's shape
 
-    builder.add_node("input_guardrail", input_guardrail_node)    # register each step under a name
-    builder.add_node("retrieve", retrieve_node)
-    builder.add_node("rerank", rerank_node)
-    builder.add_node("generate", generate_node)
-    builder.add_node("output_guardrail", output_guardrail_node)
-    builder.add_node("human_review", human_review_node)
-    builder.add_node("finalise", finalise_node)
+    builder.add_node("input_guardrail", traced("input_guardrail", input_guardrail_node))  # register each step under a name; CHANGED: traced(...) records it
+    builder.add_node("retrieve", traced("retrieve", retrieve_node))                       # CHANGED: wrapped in traced(...)
+    builder.add_node("rerank", traced("rerank", rerank_node))                             # CHANGED: wrapped in traced(...)
+    builder.add_node("generate", traced("generate", generate_node))                       # CHANGED: wrapped in traced(...)
+    builder.add_node("output_guardrail", traced("output_guardrail", output_guardrail_node))  # CHANGED: wrapped in traced(...)
+    builder.add_node("human_review", traced("human_review", human_review_node))           # CHANGED: wrapped in traced(...)
+    builder.add_node("finalise", traced("finalise", finalise_node))                       # CHANGED: wrapped in traced(...)
 
     builder.add_edge(START, "input_guardrail")  # every run starts with the input guardrail
     builder.add_conditional_edges(              # a fork: the route function picks the branch

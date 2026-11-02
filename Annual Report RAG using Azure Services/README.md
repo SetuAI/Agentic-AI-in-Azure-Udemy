@@ -226,6 +226,28 @@ python graph/build_graph.py        # the pipeline as a diagram (paste into merma
 
 ---
 
+## Host it on Azure
+
+The same web UI can run on **Azure App Service**. Visitors sign in with Microsoft
+Entra ID first, and **Application Insights** times every request and every
+graph step. In short:
+
+```bash
+# once: create Application Insights, an App Service plan and a web app, copy .env into its settings
+# (every command, explained: hosting.md)
+
+APP=<your-web-app-name> bash azure_setup/deploy-app.sh    # zip the code and upload it; repeat after each change
+```
+
+- `startup.sh` is how App Service starts the app (`python UI/server.py`, on `0.0.0.0:$PORT`).
+- `GET /health` answers `{"status": "ok"}` for App Service's health check.
+- With App Service sign-in switched on, the page shows **Signed in as …** and a **Sign out** link.
+- Monitoring is off unless `APPLICATIONINSIGHTS_CONNECTION_STRING` is set, so local runs and tests are unaffected.
+
+**Step by step, with every command: [hosting.md](hosting.md).**
+
+---
+
 ## Key settings (`config.py`)
 
 | Setting | Value | Meaning |
@@ -246,7 +268,8 @@ python -m pytest tests
 
 All offline: no Azure account, no keys, no cost. They cover the search filter,
 the index definition, the search call, the semantic rerank, the PDF-to-markdown
-cache, the content-filter handling, the guardrails, and the review pause.
+cache, the content-filter handling, the guardrails, the review pause, and
+hosting (`/health`, the signed-in user, which host and port the server uses).
 
 ---
 
@@ -269,6 +292,7 @@ cache, the content-filter handling, the guardrails, and the review pause.
 - **PDF conversion is free.** PyMuPDF4LLM runs on your machine and caches results in `data/processed/`.
 - **Azure OpenAI** is billed per token. Building the index embeds every chunk once;
   each question costs a few calls.
+- **Hosting (optional).** The App Service plan (B1) is billed per hour while it exists. See [hosting.md](hosting.md).
 
 When you're done:
 
@@ -285,6 +309,9 @@ config.py                 every setting (secrets come from .env)
 azure_clients.py          one connection per Azure service
 run_ingestion.py          build the search index
 run_query.py              ask a question in the terminal, review if needed
+telemetry.py              switches on Application Insights (off without a connection string)
+startup.sh                how App Service starts the web app
+hosting.md                host it on Azure: every command, end to end
 
 data/                     git-ignored
   raw/                    the four PDFs
@@ -309,15 +336,16 @@ guardrails/
 graph/
   state.py                what flows through
   nodes.py                what each step does
-  build_graph.py          the order, and the pause for review
+  build_graph.py          the order, the pause for review, and each step's timing
 
 UI/
-  server.py               local web server: runs the graph, serves the page
-  index.html              the page: query box, answer, review, rerank chart
+  server.py               web server (laptop or App Service): runs the graph, /health, /api/me
+  index.html              the page: query box, answer, review, rerank chart, signed-in user
 
 azure_setup/
   provision.sh            create every Azure resource
   teardown.sh             delete them all
+  deploy-app.sh           zip the code and upload it to the web app
 
 tests/                    offline tests
 ```

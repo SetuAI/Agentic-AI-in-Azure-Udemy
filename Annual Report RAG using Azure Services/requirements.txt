@@ -13,5 +13,9 @@ langchain-text-splitters        # cuts markdown into chunks at headings and para
 numpy                           # maths for the topic check's similarity scores
 python-dotenv                   # reads keys and endpoints from the .env file
 
+# --- monitoring (Application Insights; does nothing unless its connection string is set) ---
+azure-monitor-opentelemetry             # NEW: sends requests, steps and Azure calls to Application Insights
+opentelemetry-instrumentation-httpx     # NEW: records Azure OpenAI calls (the openai library uses httpx)
+
 # --- tests ---
 pytest                          # runs the offline tests in tests/
