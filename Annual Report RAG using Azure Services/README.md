@@ -24,7 +24,17 @@ Intelligence, which bills per page and would be costly for reports this long.
 
 ---
 
+## Architecture
+
+[![End-to-end architecture: build time (provision, ingestion into Blob Storage and AI Search, deploy), run time (Entra ID sign-in, App Service, the 7 LangGraph steps with the human-review pause, Azure OpenAI, Application Insights) and the data in Azure (Blob container and the AI Search index)](docs/architecture/architecture-preview.png)](docs/architecture/architecture-preview.png)
+
+<sub>*Click the image to see it full size. To edit it, open [`docs/architecture/architecture.excalidraw`](docs/architecture/architecture.excalidraw) at [excalidraw.com](https://excalidraw.com) (☰ → Open). To redraw it after a change: `python docs/architecture/build_architecture.py docs/architecture/architecture.excalidraw docs/architecture/architecture-preview.svg`.*</sub>
+
+---
+
 ## How it works, end to end
+
+The same flow in text:
 
 ```
                          ┌───────────────────── INGESTION (once) ─────────────────────┐
@@ -348,6 +358,8 @@ azure_setup/
   deploy-app.sh           zip the code and upload it to the web app
 
 tests/                    offline tests
+
+docs/architecture/        Excalidraw architecture diagram (+ PNG/SVG preview, generator)
 ```
 
 ---
