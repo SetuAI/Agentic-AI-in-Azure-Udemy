@@ -1,5 +1,4 @@
 .env
-data/
 pdfs/
 __pycache__/
 *.pyc
