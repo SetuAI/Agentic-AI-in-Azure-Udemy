@@ -2,70 +2,171 @@
 # config/agent.yaml
 # =============================================================================
 #
-# Settings for the Stage 6 agent (agent/graph.py). Rules and limits only:
-# nothing here names a planted pattern or a hidden link.
+# PURPOSE:
+#   The settings for the agent: the limits it works within and where to
+#   look things up. No code, only values.
 #
-# HOW IT IS READ: agent/context.py -> agent_config() loads this file with
-# yaml.safe_load, so every "key: value" below becomes a Python dict entry.
-# Lines starting with "#" are comments and are ignored.
+# WHO READS IT:
+#   agent/context.py -> agent_config() reads this file once, with
+#   yaml.safe_load, and every step gets it from there. Each "key: value"
+#   line below becomes one entry in a Python dictionary, so
+#       entity_min_score: 0.5
+#   is read in code as
+#       context.agent_config()["entity_min_score"]   ->  0.5
+#
+# WHICH SETTINGS EACH VIDEO USES:
+#   6A   prompt_shields.fail_open, entity_columns, entity_min_score
+#   6B   max_sql_retries, run, date_filter_required, search_top_k, phrase_min_score
+#   6C   summary_rows
+#
+# WHY KEEP THESE IN A FILE AND NOT IN THE CODE:
+#   You can change a limit — say, allow 3 retries instead of 2 — without
+#   touching any Python. And anyone can open one file and see every rule
+#   the agent follows.
+#
+# NOTE: nothing here mentions a planted pattern or a hidden link. The agent
+# has to find those the same way a real user's question would.
+#
+# Lines starting with "#" are comments. YAML ignores them.
 # =============================================================================
 
-# How many times the agent may rewrite SQL after a failed check or a failed
-# run, before giving up. Tradeoff 10: max 2 retries.
+
+# ── RETRIES (6B) ─────────────────────────────────────────────────────────────
+
 max_sql_retries: 2
+# If the SQL fails a check, or fails when run, the agent sends the error
+# back to the model and asks it to write the SQL again. This is the most
+# times it may do that.
+#
+# 2 retries means at most 3 attempts in total: the first try plus two more.
+# After that, the agent stops and reports "failed".
+#
+# WHY A LIMIT AT ALL: each attempt is a call to the strong model, which
+# costs money and takes a few seconds. Without a limit, a question the
+# model cannot get right would keep retrying forever.
 
-# Protecting the database (tradeoff 6).
-# "run" groups the three safety limits applied every time a query is executed.
+
+# ── PROTECTING THE DATABASE (6B) ─────────────────────────────────────────────
+
 run:
+  # The three limits applied every time a query is run on mf_data.
+
   timeout_ms: 15000        # cancel any query running longer than 15 seconds
+  # 15,000 milliseconds = 15 seconds. A query still running after that is
+  # stopped by PostgreSQL. Protects the database from one slow query.
+
   row_cap: 5000            # never fetch more than this many rows back
+  # Even if the query would return a million rows, only 5,000 come back.
+  # Nobody reads more than that, and fetching a million would be slow.
+
   max_plan_cost: 2000000   # refuse queries Postgres estimates above this cost
+  # Before running a query, the agent asks PostgreSQL "how expensive would
+  # this be?" (EXPLAIN). PostgreSQL replies with a cost number. Above
+  # 2,000,000, the query is refused WITHOUT being run.
+  #
+  # The cost is PostgreSQL's own estimate, not seconds. A bigger number
+  # means more work.
 
-# Tables whose queries MUST filter on a date column, because they are large
-# and split by month. Without a date filter, Postgres reads every month.
+
 date_filter_required:
-  # Format is  table_name: date_column  -> any query on "transactions" must filter "txn_date".
+  # Tables that every query MUST filter by date.
+
   transactions: txn_date
+  # Read as: any query on "transactions" must have a condition on "txn_date".
+  #
+  # WHY: transactions is the biggest table, and it is split into 60 monthly
+  # pieces (Part 2). With a date filter, PostgreSQL reads only the months
+  # asked for. Without one, it reads all 60.
 
-# How many tables vector search suggests, before entity and metric tables are added.
+
+# ── FINDING TABLES (6B) ──────────────────────────────────────────────────────
+
 search_top_k: 4
-# Each kind of data the question needs (understand's data_needed) adds its best-matching
-# table, if it scores at least this. Below it, the phrase matched nothing in particular.
+# How many tables the table search suggests, when nothing else has
+# already said which tables are needed.
+
 phrase_min_score: 0.3
+# Step 2 lists the kinds of data the question needs ("data_needed"). In 6B
+# each phrase is searched, and adds its best table — but only if that
+# table scores at least 0.3. Below that, the phrase did not match any
+# table well, so nothing is added.
 
-# The model sees only this many result rows when writing commentary (tradeoff 7).
+
+# ── THE ANSWER (6C) ──────────────────────────────────────────────────────────
+
 summary_rows: 20
+# When the model writes the plain-English answer, it is shown at most this
+# many rows of the result, plus the row count and column totals.
+#
+# WHY: a result of 5,000 rows would be very expensive to send to the model,
+# and the model does not need every row to describe the result.
 
-# Names in a question are matched to exact database values. A match below
-# this similarity is ignored rather than risk using the wrong scheme.
+
+# ── MATCHING NAMES (6A, step 3) ──────────────────────────────────────────────
+
 entity_min_score: 0.5
+# When the user types a name, step 3 finds the closest stored name. The
+# match is used only if its score is at least 0.5 (on a scale of 0 to 1).
+#
+# Below 0.5, the match is ignored. A wrong fund name would give a
+# confident answer about the WRONG fund, so no match is better than a weak one.
+#
+# For our demo, "sahyadri credit fund" matches "Sahyadri Credit Risk Fund"
+# with a score of about 0.8, well above the line.
 
-# Which table and column each kind of name is looked up in.
-# Format is  kind_of_name: [table, column]. Example: when the user mentions a
-# scheme, its exact spelling is looked up in table "schemes", column "scheme_name".
+
 entity_columns:
-  # Mutual fund scheme names, e.g. "Sahyadri Credit Risk Fund".
-  scheme: [schemes, scheme_name]
-  # Companies that issue bonds/shares.
-  issuer: [issuers, issuer_name]
-  # Business groups that several issuers belong to.
-  group: [issuer_groups, group_name]
-  # Industry sectors, e.g. "Banking".
-  sector: [sectors, sector_name]
-  # Distributors (agents who sell funds). Note the short legacy column name dist_nm.
-  distributor: [distributors, dist_nm]
-  # Fund manager names.
-  manager: [fund_managers, manager_name]
-  # Scheme categories, e.g. "Credit Risk Fund".
-  category: [scheme_categories, category_name]
-  # Investor cities.
-  city: [investors, city]
-  # Benchmark index names a scheme is compared against.
-  benchmark: [benchmarks, benchmark_name]
+  # Where each KIND of name is stored. Step 2 says what kind each name is;
+  # step 3 uses this list to know which table and column to search.
+  #
+  # Format:   kind: [table, column]
+  #
+  # Every column listed here must be one that Part 4's publish.py turned
+  # into searchable data. Otherwise step 3 would find nothing.
 
-# Settings for Azure AI Content Safety Prompt Shields (guardrails/prompt_shields.py).
+  scheme: [schemes, scheme_name]
+  # Mutual fund scheme names, e.g. "Sahyadri Credit Risk Fund".
+  # The one our demo question uses.
+
+  issuer: [issuers, issuer_name]
+  # Companies that issue bonds and shares, e.g. "Malabar Commercial Bank".
+
+  group: [issuer_groups, group_name]
+  # Business groups that several issuers belong to, e.g. "Trident Group".
+
+  sector: [sectors, sector_name]
+  # Industry sectors, e.g. "Banking".
+
+  distributor: [distributors, dist_nm]
+  # Distributors — the agents who sell funds to investors.
+  # Note the short old-style column name, dist_nm. A user would never type
+  # that; this list is how the agent knows where distributor names are.
+
+  manager: [fund_managers, manager_name]
+  # Fund manager names.
+
+  category: [scheme_categories, category_name]
+  # Scheme categories, e.g. "Credit Risk Fund".
+
+  city: [investors, city]
+  # The cities investors live in.
+
+  benchmark: [benchmarks, benchmark_name]
+  # The index a scheme's performance is compared against.
+
+
+# ── CONTENT SAFETY (6A, step 1) ──────────────────────────────────────────────
+
 prompt_shields:
-  # true: if Content Safety cannot be reached, let the question through and
-  # record that the check was skipped. Keeps a demo running through a
-  # network blip. MUST be false in production: fail closed.
+  # Settings for the Prompt Shields check in guardrails/prompt_shields.py.
+
   fail_open: true
+  # What to do if Content Safety CANNOT BE REACHED (network down, wrong
+  # key, not set up):
+  #
+  #   true    let the question through, and record that the check was skipped
+  #   false   block the question
+  #
+  # true keeps a demo running through a network blip. It MUST be false in
+  # production — if the safety check cannot run, the safe choice is to stop.
+  # That is called "failing closed".

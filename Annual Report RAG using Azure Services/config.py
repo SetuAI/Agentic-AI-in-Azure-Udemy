@@ -130,7 +130,7 @@ CHUNK_OVERLAP = 200                             # characters repeated between ne
 MIN_CHUNK_LENGTH = 100                          # anything shorter (page numbers, stray headers) is thrown away
 
 TOPIC_SIMILARITY_THRESHOLD = 0.40               # how close a question must be to our examples to count as on-topic
-GROUNDING_THRESHOLD = 0.90                      # share of an answer's numbers that must trace back to the sources
+GROUNDING_THRESHOLD =0.90                    # share of an answer's numbers that must trace back to the sources
 INTERRUPT_ON_LOW_GROUNDING = True               # False runs straight through without pausing for review
 
 

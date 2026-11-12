@@ -19,6 +19,8 @@ Portal screens change from time to time. If a button has moved, use the search b
 
 Do 1 to 4 first: with those, the whole project runs on your laptop against Azure. Do 5 and 6 when you want to host it.
 
+To host it, the full list of terminal commands is in **[hosting.md](hosting.md)**, in order, each with a short explanation of what it does.
+
 ---
 
 ## Before you start

@@ -4,7 +4,7 @@
 # =============================================================================
 #
 # PURPOSE
-#   Uploads this project's code to the Azure web app created in hosting.md.
+#   Uploads this project's code to the Azure web app created in docs/architecture/webapps.md.
 #   Run it after the web app is set up, and again after every code change.
 #
 # WHAT PROBLEM DOES IT SOLVE
@@ -24,7 +24,8 @@
 #        *.md          documentation
 #   2. Uploads the zip. Because SCM_DO_BUILD_DURING_DEPLOYMENT is true,
 #      Azure installs requirements.txt, then runs startup.sh.
-#      3 to 5 minutes the first time; faster afterwards.
+#      The script checks every 20 seconds until Azure says this deployment
+#      finished (3 to 10 minutes; up to 15 before it gives up).
 #   3. Calls /health every 10 seconds, for up to 5 minutes, until it answers.
 #
 # HOW TO RUN (from the project folder, after az login)
@@ -33,7 +34,13 @@
 # EXPECTED OUTPUT
 #   1. Packaging
 #      52K zip
-#   2. Uploading (Azure installs the packages; this takes a few minutes)
+#   2. Uploading
+#      WARNING: Status: Building the app... Time: 20(s)      (Azure's progress, every ~16 s)
+#      WARNING: Status: Build successful. Time: 192(s)
+#      WARNING: Status: Starting the site... Time: 208(s)
+#      WARNING: Deployment has completed successfully
+#      Installing packages on Azure (...)
+#      Installed
 #   3. Waiting for /health
 #   Live: https://annualreport-rag-tarka.azurewebsites.net
 # =============================================================================
@@ -54,9 +61,39 @@ zip -qr "$BUILD/app.zip" . \
        "*__pycache__*" ".pytest_cache/*" "*.md" ".DS_Store"   # -q quiet, -r include sub-folders, -x leave these out
 echo "   $(du -h "$BUILD/app.zip" | cut -f1) zip"  # the zip's size: small, because the PDFs are left out
 
-echo "2. Uploading (Azure installs the packages; this takes a few minutes)"
+latest_deployment() {                           # prints "<id> <complete> <status>" of the newest deployment
+    az webapp log deployment list --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" \
+        --query "max_by(@, &start_time).[id, complete, status]" -o tsv 2>/dev/null | paste -sd' ' - || true   # paste: join the three lines into one
+}
+PREVIOUS="$(latest_deployment | cut -d' ' -f1)"  # the deployment before this one, so we can tell ours apart
+
+echo "2. Uploading"
 az webapp deploy --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" \
-    --src-path "$BUILD/app.zip" --type zip --output none   # upload; Azure unzips it, installs, and restarts the app
+    --src-path "$BUILD/app.zip" --type zip --async true --output none   # upload; Azure unzips it, installs, and restarts the app
+                                                # --async: return once uploaded, and wait below instead. Without it the
+                                                # CLI gives up after a few minutes (504 Gateway Timeout) while Azure
+                                                # is still installing, and the script stops even though nothing failed.
+
+echo "   Installing packages on Azure (3 to 10 minutes; a status line every 20 seconds)"   # usually done already: the upload above waits too
+INSTALLED=no
+for _ in $(seq 1 45); do                        # up to 45 checks x 20 s = 15 minutes
+    read -r ID COMPLETE STATUS <<< "$(latest_deployment)"   # split the line into three variables
+    if [ -n "${ID:-}" ] && [ "$ID" != "$PREVIOUS" ]; then   # our deployment has appeared
+        if [ "$COMPLETE" = "True" ] || [ "$COMPLETE" = "true" ]; then
+            [ "$STATUS" = "4" ] && { echo "   Installed"; INSTALLED=yes; break; }   # 4 = success
+            echo "Deployment failed. Logs: az webapp log deployment show -n $APP_NAME -g $RESOURCE_GROUP" >&2
+            exit 1                              # 3 = failed
+        fi
+        echo "   still installing..."
+    else
+        echo "   waiting for Azure to start the deployment..."
+    fi
+    sleep 20
+done
+if [ "$INSTALLED" != yes ]; then                # 15 minutes passed without an answer
+    echo "Still not finished after 15 minutes. Logs: az webapp log deployment show -n $APP_NAME -g $RESOURCE_GROUP" >&2
+    exit 1
+fi
 
 echo "3. Waiting for /health"
 HOST="$(az webapp show --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" --query defaultHostName -o tsv)"  # the app's address

@@ -1,7 +1,25 @@
 # =============================================================================
 # config/access.yaml  -  PLACEHOLDER (intentionally empty for now)
 # =============================================================================
-# This file is reserved for a later stage: rules for WHO may see WHICH tables
-# or rows (role-based access). No code reads it yet, so there is nothing to
-# fill in. Leave it as it is.
+#
+# PURPOSE:
+#   Reserved for a later stage: rules for WHO may see WHICH tables or rows.
+#   This is called role-based access.
+#
+# WHAT IT WILL BE FOR:
+#   In a real company, not everyone should see everything. For example:
+#     - a branch manager sees only their own region's investors
+#     - a distributor sees only their own transactions
+#     - only the compliance team sees the personal-data columns
+#   This file would list those rules, and the agent would add them to every
+#   query before it runs.
+#
+# TODAY:
+#   No code reads this file. Everyone who uses the demo sees all the data,
+#   which is fine for synthetic data. There is nothing to fill in. Leave it
+#   as it is.
+#
+# WHY KEEP AN EMPTY FILE:
+#   It marks where the rules will go, so the next person to build this
+#   knows it's planned and where to put it.
 # =============================================================================

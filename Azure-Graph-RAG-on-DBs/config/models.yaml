@@ -2,32 +2,85 @@
 # config/models.yaml
 # =============================================================================
 #
-# Which Azure OpenAI deployment plays each role. Code never names a model
-# directly: it asks for a role ("small", "strong", "embedding") and reads the
-# deployment name from here. Swapping a model is then a one-line change.
+# PURPOSE:
+#   Says which Azure OpenAI deployment does each job in the project.
 #
-#   small     -> quick, cheap jobs: understanding the question, routing
-#   strong    -> jobs where quality matters: table notes, SQL, commentary
-#   embedding -> turning text into 1,536 numbers for pgvector
+#   There are three jobs, called ROLES:
+#     small      quick, cheap jobs
+#                  -> step 2 of the agent: understanding the question
+#     strong     jobs where quality matters most
+#                  -> Part 4: writing the table and column notes
+#                  -> step 6: writing the SQL
+#                  -> step 10: writing the answer in plain English
+#     embedding  turning text into 1,536 numbers, so it can be searched
+#                  -> Part 4: publish.py stores them
+#                  -> steps 3 and 4: the searches
 #
-# "small" points at gpt-5.1 for now, because East US had no regional quota for
-# gpt-4.1-mini. When that quota arrives, change "small" to its deployment name.
+# WHAT PROBLEM DOES THIS SOLVE:
+#   The code never names a model directly. It asks for a ROLE — "small",
+#   "strong" or "embedding" — and this file says which deployment that role
+#   means today.
 #
-# HOW IT IS READ: metadata/llm.py -> _models(). The values must be the
-# DEPLOYMENT names you created in Azure AI Foundry (not just model names).
+#   So changing a model is a one-line change here. Nothing in the Python
+#   code changes. You could try a cheaper model for "small" tomorrow, and
+#   every step that uses "small" would switch at once.
+#
+# WHO READS IT:
+#   metadata/llm.py — the only file that talks to Azure OpenAI. It reads
+#   this file and looks up the role every time it's asked to call a model.
+#
+# IMPORTANT — DEPLOYMENT NAMES, NOT MODEL NAMES:
+#   The values below must be the DEPLOYMENT names you created in Azure AI
+#   Foundry (Part 5, the Foundry setup video). If you named your deployment
+#   "my-gpt", write "my-gpt" here, not "gpt-5.1". A wrong name gives a
+#   "DeploymentNotFound" error.
+#
+# HOW TO CHECK IT WORKS:
+#       uv run pytest tests/test_azure_openai.py -v
+#   2 passed: the chat model replies, and the embedding model returns 1,536 numbers.
+#
+# Lines starting with "#" are comments. YAML ignores them.
 # =============================================================================
 
-# Chat (text-generating) models, by role.
+
+# ── CHAT MODELS ──────────────────────────────────────────────────────────────
+# Models that read text and write text back.
+
 chat:
-  # Deployment used for quick, cheap steps.
+
   small: gpt-5.1
-  # Deployment used where quality matters most.
+  # Used for quick, cheap steps. Today, only step 2 (understanding the question).
+  #
+  # It points at gpt-5.1 for now, the same as "strong", because the region
+  # had no quota for gpt-4.1-mini when this was set up. When that quota is
+  # available, change this one line to the smaller model's deployment name.
+
   strong: gpt-5.1
+  # Used where quality matters most: the table notes, the SQL, and the answer.
+  # Writing correct SQL across several joins is the hardest job in the
+  # project, so it gets the best model.
 
-# Deployment used to turn text into vectors (embeddings).
+
+# ── EMBEDDING MODEL ──────────────────────────────────────────────────────────
+
 embedding: text-embedding-3-small
+# Turns a piece of text into a list of 1,536 numbers. Text with a similar
+# meaning gets similar numbers, which is what makes searching by meaning work.
+#
+# DON'T CHANGE THIS WITHOUT REBUILDING: everything stored in meta_embeddings
+# was made with this model. A different model gives different numbers, and
+# the searches would compare numbers that don't match. If you change it, run
+# metadata.publish again. (The 1,536 is also fixed in the database table,
+# vector(1536), in metadata/store.py.)
 
-# How much the reasoning models "think" before answering. "low" is faster and
-# cheaper, and is enough for writing table notes. Raise to "medium" for SQL
-# if accuracy needs it.
+
+# ── HOW HARD THE MODEL THINKS ────────────────────────────────────────────────
+
 reasoning_effort: low
+# gpt-5.1 is a reasoning model: it "thinks" before it answers. This sets how
+# much.
+#   low      faster and cheaper. Enough for table notes and most SQL.
+#   medium   slower, more careful. Try it if the SQL gets things wrong too often.
+#
+# If a deployment doesn't accept this setting, llm.py notices the error and
+# tries again without it, so a model that doesn't support it still works.

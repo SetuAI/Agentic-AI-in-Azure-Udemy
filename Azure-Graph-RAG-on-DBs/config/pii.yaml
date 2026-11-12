@@ -2,22 +2,62 @@
 # config/pii.yaml
 # =============================================================================
 #
-# Columns that hold personal data (PII) about a real person.
+# PURPOSE:
+#   Lists every column that holds PERSONAL DATA about a real person — PII,
+#   which stands for "personally identifiable information". For example, an
+#   investor's tax ID, name, email or phone number.
 #
-# The metadata pipeline treats every column listed here as off-limits:
-#   - its values are NEVER sent to the LLM when drafting notes
-#   - its values are NEVER embedded into pgvector
-#   - its values NEVER go into long-term memory (Stage 8)
-# The column's NAME and TYPE are still described, so the SQL-writing model
-# knows the column exists and can, for example, count rows with an email.
+# WHAT HAPPENS TO A COLUMN LISTED HERE:
+#   Its VALUES are kept away from every model and every search:
+#     - never sent to the model when Part 4 writes the notes
+#     - never turned into searchable numbers by publish.py
+#     - never stored in the agent's long-term memory (Stage 8)
 #
-# On the client's database, their data protection team owns this list.
-# HOW IT IS READ: metadata/build.py -> pii_columns().
+#   Its NAME and TYPE are still described. So the SQL-writing model knows
+#   the column exists, and can still answer "how many investors have an
+#   email address?" — it counts the rows without ever seeing an email.
+#
+# WHAT PROBLEM DOES THIS SOLVE:
+#   Without this list, Part 4 would show the model a few example values
+#   from every column — including real PAN numbers and phone numbers. That
+#   personal data would leave the database and go to an outside service.
+#   This file stops that.
+#
+# HOW WE KNOW IT WORKS:
+#   Part 4's tests check it:
+#     test_pii_columns_are_flagged       every column here is marked as personal data
+#     test_no_personal_data_embedded     none of their values was turned into numbers
+#   Writing the list is not enough. The tests prove it was followed.
+#
+# WHO READS IT:
+#   metadata/build.py -> pii_columns(). build.py marks each listed column
+#   with is_pii = true in meta_columns, and every later step checks that flag.
+#
+# WHO OWNS IT:
+#   On a real client's database, their data protection team decides what
+#   goes on this list, not the developers.
+#
+# Lines starting with "#" are comments. YAML ignores them.
 # =============================================================================
 
-# Format is  table_name: [column, column, ...]
+
+# Format:   table_name: [column, column, ...]
+
 pii_columns:
-  # Investor identity: PAN (tax ID), name, email, phone and birth date.
+
   investors: [pan, full_name, email, mobile, date_of_birth]
-  # The (masked) bank account number linked to a folio.
+  # The investor's identity:
+  #   pan             the tax ID number every Indian investor has
+  #   full_name       their name
+  #   email           their email address
+  #   mobile          their phone number
+  #   date_of_birth   their birth date
+  #
+  # Note what is NOT here: city and city_tier. Those describe WHERE an
+  # investor lives in general, not WHO they are, so they can be searched.
+  # That's how a question like "Where are SIP cancellations rising?" can be
+  # answered by city tier.
+
   folios: [bank_account_masked]
+  # The bank account linked to a folio. It's already masked (most digits
+  # hidden), but it's still personal data, so it's still listed.

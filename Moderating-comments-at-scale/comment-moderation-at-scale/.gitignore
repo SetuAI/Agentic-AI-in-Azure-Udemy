@@ -1,0 +1,14 @@
+# real secrets live here - never commit it
+.env
+
+# Python cache and virtual environments
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# generated data and reports (students regenerate them by running the scripts)
+01_data/output/*
+!01_data/output/.gitkeep
+03_evaluation/reports/*
+!03_evaluation/reports/.gitkeep

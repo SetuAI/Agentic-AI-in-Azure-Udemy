@@ -94,7 +94,7 @@
 <text x="352" y="600.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">headings · labelled company + year</text>
 <text x="352" y="675.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">recreate index · embed 512 dims</text>
 <text x="352" y="692.5" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">→ ~5,150 chunks uploaded</text>
-<text x="80" y="798.0" font-size="18" font-family="Comic Sans MS, cursive" fill="#1864ab" text-anchor="start">Hosting  (hosting.md)</text>
+<text x="80" y="798.0" font-size="18" font-family="Comic Sans MS, cursive" fill="#1864ab" text-anchor="start">Hosting  (webapps.md)</text>
 <text x="205.0" y="851.625" font-size="15" font-family="Menlo, monospace" fill="#1e1e1e" text-anchor="middle">deploy-app.sh</text>
 <text x="80" y="899.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#495057" text-anchor="start">zip the code (never .env, data, tests) → az webapp deploy → wait for /health</text>
 <text x="365.0" y="964.0" font-size="14" font-family="Helvetica, Arial, sans-serif" fill="#1e1e1e" text-anchor="middle">config.py   every setting · secrets come from .env</text>

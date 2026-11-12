@@ -6,7 +6,7 @@
 # PURPOSE
 #   App Service runs this file every time the web app starts: after each
 #   deploy, after a restart, and after a settings change. It is set as the
-#   web app's "startup command" (see hosting.md, Step 7).
+#   web app's "startup command" (see docs/architecture/webapps.md, Step 6).
 #
 # WHAT IT DOES
 #   Starts UI/server.py, the same server you run on your laptop. On Azure:

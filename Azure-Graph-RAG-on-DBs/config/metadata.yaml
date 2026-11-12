@@ -2,52 +2,120 @@
 # config/metadata.yaml
 # =============================================================================
 #
-# Settings for the Stage 5 metadata pipeline (python -m metadata.build,
-# metadata.review, metadata.publish).
+# PURPOSE:
+#   The settings for the metadata pipeline in Part 4: build, review, publish.
+#   Rules only — how strict to be when finding links, how many examples to
+#   show the model, what to make searchable, and how far the graph may look.
 #
-# Contains rules only. It must never contain answers about which links are
-# hidden or which patterns are planted: those live in evals/answer_key/.
+# WHO READS IT:
+#   metadata/build.py -> load_yaml("metadata.yaml"), and publish.py.
+#   The commands that use it:
+#       uv run python -m metadata.build
+#       uv run python -m metadata.publish
 #
-# HOW IT IS READ: metadata/build.py -> load_yaml("metadata.yaml").
+# WHAT IS DELIBERATELY NOT IN THIS FILE:
+#   It never says WHICH links are hidden or WHICH patterns are planted.
+#   Those answers live in evals/answer_key/, which the pipeline never reads.
+#   This file only says HOW to search, never WHAT to find.
+#
+# Lines starting with "#" are comments. YAML ignores them.
 # =============================================================================
 
-# Rules for finding join links between tables that the schema does not declare.
+
+# ── FINDING HIDDEN LINKS (build, links.py) ───────────────────────────────────
+
 link_discovery:
-  # A proposed link needs at least this share of the column's distinct values
-  # to exist in the column it points to. 0.95 allows a few dirty values.
+  # The rules for finding links between tables that the database doesn't declare.
+
   min_overlap: 0.95
-  # Value matching is only tried on columns with at least this many distinct
-  # values. Small lists (e.g. 'Y'/'N', 'Active'/'Closed') match by
-  # coincidence too easily.
+  # A proposed link needs at least 95% of a column's different values to
+  # also appear in the column it points to.
+  #
+  # WHY NOT 100%: real data is messy. A few typos or old codes shouldn't
+  # hide a real link. 95% allows a few bad values.
+  #
+  # WHY NOT LOWER: two unrelated columns can share some values by chance.
+  # A high bar keeps wrong links out — and a wrong link gives wrong answers
+  # that look right.
+
   min_distinct_for_value_match: 10
+  # Only compare values on columns with at least 10 different values.
+  #
+  # WHY: a column holding only "Y" and "N", or "Active" and "Closed", would
+  # match ANY other column holding the same few words — 100% overlap, by
+  # pure coincidence. Ten or more different values makes a chance match
+  # very unlikely.
 
-# Rules for the LLM-written descriptions ("notes") of every table and column.
+
+# ── WRITING THE NOTES (build, notes.py) ──────────────────────────────────────
+
 notes:
-  # How many example values to show the LLM per column (never for PII columns).
+  # The rules for the model that writes a description of every table and column.
+
   sample_values: 5
-  # How many tables to draft at the same time. Higher is faster, but may hit
-  # the deployment's tokens-per-minute limit.
+  # How many real example values to show the model for each column — for
+  # example, 5 real fund names. Examples help the model work out what a
+  # cryptic column like rtg holds.
+  #
+  # NEVER for personal-data columns: those listed in pii.yaml get no examples.
+
   parallel_calls: 4
+  # How many tables to describe at the same time.
+  #
+  # Higher is faster, but every call uses some of the Azure deployment's
+  # tokens-per-minute limit. Too many at once and Azure replies "too many
+  # requests". 4 is a safe middle.
 
-# Rules for turning text into vectors (embeddings) stored in pgvector.
+
+# ── MAKING THINGS SEARCHABLE (publish.py) ────────────────────────────────────
+
 embedding:
-  # Text columns with fewer distinct values than this have their values
-  # embedded, so names in questions ("Sahyadri credit fund") can be matched
-  # to exact database values. Above this, the column is too varied to embed.
-  max_distinct_values: 10000
-  # Columns whose names match these patterns hold codes or identifiers, not
-  # names people type in questions. They are never embedded.
-  # (These are regular expressions: "$" means "ends with", "^" means "starts with".)
-  exclude_column_patterns: ["_code$", "_cd$", "^isin$", "_no$", "_number$", "_masked$", "_arn$"]
-  # How many texts are sent to the embedding model in one API call.
-  batch_size: 100
+  # The rules for which values are turned into searchable numbers.
 
-# Settings for the schema graph (tables = nodes, joins = edges) built with Apache AGE.
+  max_distinct_values: 10000
+  # A text column's values are made searchable only if it has fewer than
+  # 10,000 different values.
+  #
+  # WHY: names a user might type — fund names, company names, cities — come
+  # from short lists. A column with more different values than that is
+  # usually free text or an ID, which nobody searches for by meaning.
+
+  exclude_column_patterns: ["_code$", "_cd$", "^isin$", "_no$", "_number$", "_masked$", "_arn$"]
+  # Columns whose NAMES match these patterns are never made searchable,
+  # because they hold codes, not names a person would type.
+  #
+  # These are patterns: "$" means "ends with", "^" means "starts with".
+  #   _code$     ends with _code       e.g. security_code
+  #   _cd$       ends with _cd         e.g. sec_cd
+  #   ^isin$     is exactly isin       a bond's international ID
+  #   _no$       ends with _no         e.g. arn_no
+  #   _number$   ends with _number
+  #   _masked$   ends with _masked     e.g. bank_account_masked
+  #   _arn$      ends with _arn        e.g. distributor_arn
+  #
+  # Nobody asks "which distributor has ARN-104417?" by meaning. And turning
+  # thousands of codes into numbers would cost money and help no search.
+
+  batch_size: 100
+  # How many pieces of text to send to the embedding model in one call.
+  # Sending 100 at once is much faster than 100 separate calls.
+
+
+# ── THE GRAPH (publish.py, retrieval.py) ─────────────────────────────────────
+
 graph:
-  # The AGE graph's name inside agent_meta.
+  # Settings for the graph of tables and links, built with Apache AGE.
+
   name: schema_graph
-  # The longest route, in joins, the path finder will consider between two
-  # tables. 6 covers the longest route in this schema: transactions ->
-  # scheme_plans -> schemes -> portfolio_holdings -> securities ->
-  # credit_rating_history is 5 joins.
+  # The graph's name inside agent_meta. publish.py creates it, and
+  # retrieval.py searches it. The SQL commands in Cloud Shell use this name too:
+  #   SELECT * FROM cypher('schema_graph', $$ ... $$) AS (...);
+
   max_hops: 6
+  # The longest route, in joins, the path finder will look at between two tables.
+  #
+  # The longest route this database needs is 5 joins:
+  #   transactions -> scheme_plans -> schemes -> portfolio_holdings
+  #                -> securities -> credit_rating_history
+  # 6 covers that, with one to spare. A higher number would make the graph
+  # search slower and add very long routes no sensible query needs.

@@ -204,7 +204,7 @@ The same information is in the portal: web app → **Deployment → Deployment C
    Expected: `{"status":"ok"}`.
 3. Open `https://<default-domain>` in a browser. With sign-in on (entra-id.md), you are sent to the Microsoft sign-in page first. Sign in with your work account.
 4. You should see:
-   - your name and **Sign out** at the top right,
+   - a **Sign out** link at the top right,
    - **Records per table** showing the row total (proof the app reached Postgres), and
    - an answer when you ask a question (proof it reached Azure OpenAI and Content Safety).
 

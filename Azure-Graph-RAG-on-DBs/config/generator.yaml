@@ -2,33 +2,77 @@
 # config/generator.yaml
 # =============================================================================
 #
-# Settings for the synthetic data generator (dataplane/generator/run.py).
-# It is read by dataplane/generator/common.py -> load_settings().
+# PURPOSE:
+#   The settings for the fake-data generator — the code that creates all
+#   1.1 million rows of mutual fund data in mf_data (Part 3).
 #
-# WHAT IS DELIBERATELY NOT IN THIS FILE
-# -------------------------------------
-# The 6 planted patterns (which scheme, which bond, which dates) live in
-# dataplane/generator/patterns.py, NOT here. The Stage 5 metadata pipeline
-# reads everything in config/. If the patterns were here, the pipeline could
-# read the answers instead of finding them in the data.
+#   Only four settings: the random seed, the size, and the first and last day.
+#
+# WHO READS IT:
+#   dataplane/generator/common.py -> load_settings(). run.py calls that once
+#   at the start, and passes the settings to every builder.
+#
+# HOW TO RUN THE GENERATOR:
+#       uv run python -m dataplane.generator.run
+#   It creates the data and loads it into mf_data.
+#
+# WHAT IS DELIBERATELY NOT IN THIS FILE:
+#   The 6 planted patterns — which scheme, which bond, which dates — are NOT
+#   here. They live in dataplane/generator/patterns.py.
+#
+#   WHY: the metadata pipeline in Part 4 reads everything in config/. If the
+#   patterns were written here, the pipeline could read the answers instead
+#   of finding them in the data, and its results would prove nothing.
+#
+# Lines starting with "#" are comments. YAML ignores them.
 # =============================================================================
 
-# The random seed. The generator uses random numbers everywhere (amounts,
-# dates, names). Starting from the same seed produces exactly the same
-# database every run, so a bug seen once can be reproduced.
-seed: 42
 
-# How big the investor side of the database is.
+# ── THE RANDOM SEED ──────────────────────────────────────────────────────────
+
+seed: 42
+# The generator uses random numbers everywhere: amounts, dates, names,
+# which investor buys which fund.
+#
+# A SEED is the starting point for those random numbers. The same seed
+# always gives exactly the same "random" numbers, so:
+#   - every run builds exactly the same database
+#   - if you see a bug once, you can create the same data again and find it
+#   - everyone taking this course gets the same numbers as the videos
+#
+# Change it, and you get a different database of the same shape. The planted
+# patterns are still there, because those are written in on purpose, not
+# drawn at random.
+
+
+# ── HOW BIG ──────────────────────────────────────────────────────────────────
+
+scale: 0.2
+# How big the INVESTOR side of the database is.
 #   1.0  -> 200,000 investors, 300,000 folios, ~4.6 million transactions
 #   0.2  -> 40,000 investors, 60,000 folios, ~0.8 million transactions
-# Only the investor tables grow with scale. Schemes, securities, NAVs and
-# holdings are the same size at every scale.
-# 0.2 is used for daily work and the demo: it generates and loads in minutes.
-scale: 0.2
+#
+# Only the investor tables change size: investors, folios, SIPs and
+# transactions. Schemes, securities, NAVs and holdings are the same at every
+# scale — a fund house doesn't get more funds because it has more investors.
+#
+# 0.2 is used for the course and the demo: it generates and loads in a few
+# minutes, and fits comfortably on the small Azure server.
 
-# The 5-year window the data covers. Must match the 60 monthly pieces of
-# the transactions table created in dataplane/schema/04_transactions.sql.
-# First day of data (format YYYY-MM-DD, kept in quotes so it stays text).
+
+# ── THE DATES THE DATA COVERS ────────────────────────────────────────────────
+
 start_date: "2021-09-01"
-# Last day of data.
+# The first day of data.
+# Written in quotes so YAML keeps it as text. Without quotes, YAML would
+# turn it into its own date type.
+
 end_date: "2026-08-31"
+# The last day of data. Five years in total.
+#
+# THESE DATES MUST MATCH TWO OTHER PLACES:
+#   - dataplane/schema/04_transactions.sql, which creates one monthly piece
+#     of the transactions table for each of these 60 months. A transaction
+#     dated outside them would have nowhere to go, and the load would fail.
+#   - DATA_START and DATA_END in agent/steps/understand.py, which tell the
+#     model that "latest" means August 2026.

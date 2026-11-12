@@ -121,15 +121,21 @@ def test_review_records_who_decided(base_url, monkeypatch):
 
 def test_requests_and_steps_are_recorded(base_url, monkeypatch):
     """Monitoring: one span per request (with its status) and one per pipeline step, as Application Insights receives them."""
-    from opentelemetry import trace                                  # the tracing API telemetry.py uses
     from opentelemetry.sdk.trace import TracerProvider               # a real tracer, instead of the default no-op
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
     from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter  # keeps spans in a list
 
+    import telemetry                                                 # the module whose tracer the server uses
+
     exporter = InMemorySpanExporter()                                # spans land here instead of in Azure
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))
-    trace.set_tracer_provider(provider)                              # telemetry.tracer now records for real
+    test_tracer = provider.get_tracer("test")                        # a tracer that writes to the list above
+    # Swap the tracer in directly, rather than replacing the global one: if .env has an
+    # Application Insights connection string, telemetry.setup() has already set the global
+    # tracer, and OpenTelemetry refuses to replace it ("Overriding ... is not allowed").
+    monkeypatch.setattr(telemetry, "tracer", test_tracer)            # used by UI/server.py for each request
+    monkeypatch.setattr(graph_module, "tracer", test_tracer)         # used by traced() for each pipeline step
 
     monkeypatch.setattr(graph_module, "input_guardrail_node",        # a question the input guardrail blocks:
                         lambda s: {"input_allowed": False, "input_block_reason": "stub"})  # runs one step, then ends

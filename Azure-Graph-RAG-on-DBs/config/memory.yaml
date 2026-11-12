@@ -1,7 +1,24 @@
 # =============================================================================
 # config/memory.yaml  -  PLACEHOLDER (intentionally empty for now)
 # =============================================================================
-# This file is reserved for Stage 8 (long-term memory): settings for storing
-# conversation history in Postgres instead of the server's memory. No code
-# reads it yet, so there is nothing to fill in. Leave it as it is.
+#
+# PURPOSE:
+#   Reserved for Stage 8: settings for the agent's long-term memory.
+#
+# WHAT HAPPENS TODAY:
+#   The agent already remembers the questions in a conversation — that's
+#   how a follow-up like "now show only March" works. But today that memory
+#   lives in the server's memory (InMemorySaver, in agent/graph.py). When the
+#   server restarts, every conversation is forgotten.
+#
+# WHAT STAGE 8 WILL CHANGE:
+#   Conversations will be saved in PostgreSQL instead, so they survive a
+#   restart. This file will hold the settings for that — for example, how
+#   long to keep a conversation.
+#
+#   pii.yaml already says personal-data values must never go into this
+#   long-term memory.
+#
+# TODAY:
+#   No code reads this file. There is nothing to fill in. Leave it as it is.
 # =============================================================================

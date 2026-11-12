@@ -2,43 +2,66 @@
 # evals/questions/questions.yaml
 # =============================================================================
 #
-# WHAT THIS FILE IS FOR
-# ---------------------
-# The 18 questions the evaluation runs, each with the right answer written
-# down beside it. evals/run_eval.py asks every one of them and scores what
-# comes back against what is here.
+# PURPOSE:
+#   The test paper for the finished agent. 18 questions, each with the right
+#   answer written down next to it — which tables a correct SQL must read,
+#   which joins it must use, and which words the answer should mention.
 #
-# THE PIPELINE NEVER READS THIS FILE. Only the evaluation does. If the agent
-# could see the answers, the scores would prove nothing.
+# WHAT PROBLEM DOES THIS SOLVE:
+#   Asking the agent a few questions and thinking "looks right" is not
+#   testing. One change to a prompt can fix one question and quietly break
+#   three others. A fixed set of questions with written-down answers lets
+#   you run all of them after every change, and see exactly what got better
+#   or worse.
 #
-# WHAT EACH FIELD MEANS
-# ---------------------
-#   id             short name, used in the report
+# THE FOUR KINDS OF QUESTION:
+#   A. planted       6 questions   the planted stories (answer key:
+#                                  evals/answer_key/planted_patterns.yaml)
+#   B. simple        6 questions   one or two tables, no tricks — checks the
+#                                  everyday path works
+#   C. hidden_link   3 questions   can only be answered through a link the
+#                                  database never declared
+#   D. refusal       3 questions   MUST be refused — a delete, an update, and
+#                                  a prompt attack
+#
+#   D matters as much as A. An agent that answers everything isn't safe.
+#
+# WHO READS IT:
+#   Today, nothing. It's the ready-made question set for Stage 9, where
+#   evals/run_eval.py (not built yet) will ask every question and score the
+#   answers. You can still use it by hand: type each "question" into the
+#   demo page, and compare the result with the fields below it.
+#
+# THE PIPELINE NEVER READS THIS FILE:
+#   Same rule as the answer keys. If the agent could see these answers,
+#   scoring it against them would prove nothing.
+#
+# WHAT EACH FIELD MEANS:
+#   id             a short name, used in the report
 #   question       exactly what a user would type
 #   kind           planted | simple | hidden_link | refusal
-#   expect_status  what the agent should end with:
-#                    completed  -> a table and an explanation
-#                    blocked    -> refused (attack, or a request to change data)
-#   tables         the tables a correct SQL answer MUST read. Used for
-#                  precision@k and recall@k
-#   joins          join conditions a correct answer MUST use, written
-#                  "table.column = table.column". Used for join-path scoring.
-#                  Only listed where a specific route matters
-#   must_mention   words the explanation should contain: the entity, the
-#                  period, or the metric asked about. Used for completeness
-#   notes          why the question is in the set (for a human reading this)
+#   expect_status  how the agent should finish:
+#                    completed  -> a table and an answer
+#                    blocked    -> refused (an attack, or a request to change data)
+#   tables         the tables a correct SQL MUST read. Used to score whether
+#                  step 4 picked the right tables (precision and recall)
+#   joins          join conditions a correct SQL MUST use, written as
+#                  "table.column = table.column". Only listed where the route
+#                  matters. Used to score step 5
+#   must_mention   words the written answer should contain — the fund, the
+#                  period, or the thing asked about. Used to score step 10
+#   notes          why the question is in the set, for a person reading this
 #
-# HOW TO ADD ONE
-# --------------
-# Copy a block, change the fields, and run the evaluation. Write the ground
-# truth from the data, NOT from what the agent currently answers: a question
-# whose "right answer" was copied from the output can never fail.
+# HOW TO ADD A QUESTION:
+#   Copy a block, change the fields, and run the evaluation.
+#   Write the right answer FROM THE DATA — run the SQL yourself in Cloud
+#   Shell — NOT from what the agent currently answers. A "right answer"
+#   copied from the agent's own output can never fail, so it tests nothing.
+#
+# Lines starting with "#" are comments. YAML ignores them.
+# Every question below starts with "- id:".
 # =============================================================================
 
-# NOTE FOR FRESHERS: evals/run_eval.py (mentioned above) belongs to Stage 9 and
-# is not in this folder yet, so nothing reads this file today. It is the
-# ready-made question set for that evaluation step.
-# Every item below starts with "- id:" and uses the fields explained above.
 questions:
 
   # ---------------------------------------------------------------------------

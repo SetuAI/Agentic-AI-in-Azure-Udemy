@@ -2,53 +2,93 @@
 # evals/answer_key/hidden_links.yaml
 # =============================================================================
 #
-# WHAT THIS FILE IS FOR
-# ---------------------
-# Records the 3 links between tables that we deliberately did NOT declare in
-# the schema (no REFERENCES / foreign key). In Stage 5, the metadata pipeline
-# tries to discover links on its own. This file is the correct answer we
-# score it against.
+# PURPOSE:
+#   The ANSWER KEY for link discovery. It lists the 3 links between tables
+#   that we deliberately left OUT of the database — no foreign key, no
+#   REFERENCES — so the metadata pipeline in Part 4 has to find them by itself.
 #
-# Gate 2 target: the pipeline must find at least 2 of these 3.
+# WHY HIDE LINKS AT ALL:
+#   Real company databases are full of links nobody ever declared. Old
+#   systems, quick fixes, columns added years later. A system that only
+#   trusts declared links can't join those tables, and can't answer the
+#   questions that need them. Hiding 3 links on purpose lets us test that
+#   our pipeline can find them, the way it would have to on a real database.
 #
-# WHY THIS FILE LIVES IN evals/, NEVER IN config/
-# -----------------------------------------------
-# The metadata pipeline reads config/. If this answer key were there, the
-# pipeline could "find" the links by reading them from this file, and its
-# score would prove nothing. Keeping it under evals/ means only the scoring
-# code ever reads it.
+# HOW IT'S USED:
+#   Part 4's tests compare what the pipeline found with this list:
+#     test_gate2_at_least_2_of_3_hidden_links_found
+#         at least 2 of these 3 must be found and approved
+#     test_no_wrong_links_approved
+#         every link the pipeline found and approved must be on this list
+#   This is GATE 2: the agent isn't built until these pass.
 #
-# FIELDS
-# ------
-#   from          -> table.column that holds the pointer
-#   to            -> table.column it points to
-#   findable_by   -> which discovery method should catch it in Stage 5:
-#                      same_name     -> the column names match exactly
-#                      value_overlap -> names differ; the stored values match
-#   note          -> anything the scorer or a human reviewer should know
+# WHY THIS FILE LIVES IN evals/, NEVER IN config/:
+#   The pipeline reads config/. If this list were there, the pipeline could
+#   simply read the answers, and passing the test would prove nothing.
+#   Under evals/, only the tests ever read it. Keeping the answers away from
+#   the thing being tested is what makes the test fair.
+#
+# THE FIELDS:
+#   from          the table.column that holds the pointer
+#   to            the table.column it points to
+#   findable_by   which method should find it:
+#                   same_name      the column has the same name on both sides
+#                   value_overlap  the names differ; only the values match
+#   note          anything a reviewer should know
+#
+# Lines starting with "#" are comments. YAML ignores them.
 # =============================================================================
 
-# HOW IT IS READ: tests/test_stage5_metadata.py -> _answer_key(). Each "- " starts one list item.
+# HOW IT IS READ: tests/test_stage5_metadata.py -> _answer_key().
+# Each "- " below starts one item in the list.
+
 hidden_links:
 
-  # Hidden link 1 (same column name on both sides).
+  # ── HIDDEN LINK 1 — the easy one ───────────────────────────────────────────
   - from: scheme_aum_monthly.scheme_id
     to: schemes.scheme_id
     findable_by: same_name
     note: Easiest of the three. Column name matches schemes' primary key exactly.
+  # The monthly AUM table has a column called scheme_id, and schemes has a
+  # primary key called scheme_id. Same name, so the "same_name" method finds
+  # it: it looks for a column named like another table's key, then checks
+  # the values really match.
 
-  # Hidden link 2 (different names; found only by comparing values).
+  # ── HIDDEN LINK 2 — the old-style name ────────────────────────────────────
   - from: credit_rating_history.sec_cd
     to: securities.security_code
     findable_by: value_overlap
     note: >
       Old-style column name. Points to security_code, NOT to security_id,
       so a pipeline that only compares against primary keys will miss it.
+  # "sec_cd" and "security_code" are different names, so only comparing the
+  # VALUES can find this link.
+  #
+  # The trap: securities' primary key is security_id, a number. But sec_cd
+  # holds codes like "SEC00123", which match security_code — a UNIQUE
+  # column, not the primary key. That's why Part 4's link finder also
+  # compares against unique columns, not just primary keys.
+  #
+  # WHY IT MATTERS: this is the link that connects credit ratings to
+  # everything else. Without it, the demo question "Why did net flows drop
+  # in March 2024?" can't be connected to the bond downgrade.
+  #
+  # (The ">" means the indented lines below it are one long piece of text.)
 
-  # Hidden link 3 (different names; NULL = no distributor).
+  # ── HIDDEN LINK 3 — the one with empty values ─────────────────────────────
   - from: transactions.arn_code
     to: distributors.arn_no
     findable_by: value_overlap
-    note: >
+    note: >-
       NULL means a direct transaction with no distributor, so the overlap
       check must ignore NULLs, or it will under-report the match.
+  # Different names again, so only the values can find it.
+  #
+  # The trap: many transactions have NO distributor — the investor bought
+  # directly — so arn_code is empty (NULL) for them. If the check counted
+  # those empty values as "no match", the overlap would look far below 95%,
+  # and this real link would be thrown away. So value_overlap() in
+  # adapters/postgres.py ignores empty values.
+  #
+  # WHY IT MATTERS: "Which distributor has the highest rejection rate?"
+  # needs exactly this one join.

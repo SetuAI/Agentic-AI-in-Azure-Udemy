@@ -1,3 +1,77 @@
+##############################################################################
+# agent/graph.py
+#
+# PURPOSE:
+#   Connects the agent's 11 steps into ONE agent, and runs a question
+#   through it.
+#
+#   In Parts 1 and 2, we ran each step by hand, in Python, one at a time.
+#   This file does that automatically, using a library called LangGraph.
+#   It also makes the decisions we made by hand:
+#     - stop here, or carry on?
+#     - the SQL failed: try again, or give up?
+#
+#   Everything outside the agent uses ONE function from this file:
+#       from agent.graph import ask
+#       state = ask("Why did net flows in Sahyadri Credit Risk Fund drop in March 2024?", "conv-1")
+#   The web API in api/main.py calls it, and so do the Stage 6 tests.
+#
+# THE ROUTE A QUESTION TAKES:
+#
+#   guard_input ──attack────────────────────────────────────────→ END (blocked)
+#       ↓
+#   understand ──change data / off topic────────────────────────→ END (blocked)
+#              ──needs clarification────────────────────────────→ END
+#       ↓
+#   match_entities → select_tables → find_join_path → write_sql ──refused──→ END (blocked)
+#                                                       ↑   ↓
+#                                 fail, retries left ───┤  check_sql ──fail, no retries──→ END (failed)
+#                                                       │   ↓
+#                                 fail, retries left ───┘  run_sql ──fail, no retries───→ END (failed)
+#                                                           ↓
+#                                 summarise → write_commentary → remember → END (completed)
+#
+#   Every question ends in one of four ways:
+#     completed             answered
+#     blocked               stopped on purpose: an attack, a request to
+#                           change data, off topic, or the model refused
+#     needs_clarification   the question couldn't be answered as typed
+#     failed                the SQL failed 3 times
+#
+# WHY A FIXED ROUTE:
+#   Many agents let the model decide what to do next, step by step. This
+#   one doesn't. The order is always the same, and only the few decisions
+#   above can change it. That makes the agent predictable: the same
+#   question always goes through the same steps, and when something goes
+#   wrong you know exactly which step to look at.
+#
+# TWO MORE THINGS THIS FILE DOES:
+#   TIMING AND TRACING
+#     Every step is timed, and its note is added to a "steps" list. The
+#     demo page shows that list — every step, what it did, how long it took.
+#     Each step is also sent to Azure Application Insights, so you can see
+#     the agent working in the Azure portal.
+#   MEMORY BETWEEN QUESTIONS
+#     The state is kept between questions in the same conversation. That's
+#     how follow-up questions work.
+#
+# HOW TO TEST IT:
+#       uv run pytest tests/test_stage6_agent.py -v
+#   18 passed. The demo questions, a follow-up, an attack that's blocked,
+#   and "delete all rows" never running. Takes 2 to 4 minutes, because it
+#   calls Azure for every question.
+#
+# TRY IT YOURSELF (from the project folder):
+#       uv run python
+#       >>> from agent.graph import ask
+#       >>> state = ask("Which distributor has the highest transaction rejection rate?", "demo-1")
+#       >>> state["status"]
+#       'completed'
+#       >>> print(state["commentary"])
+#       >>> for s in state["steps"]: print(s["step"], s["ms"], "ms -", s["detail"])
+##############################################################################
+
+
 """
 agent/graph.py
 ==============
@@ -41,237 +115,452 @@ conversation_id ("thread_id" in LangGraph). That is what makes follow-up
 questions work. It lives in the server's memory, so it is lost on restart;
 Stage 8 replaces it with a Postgres-backed saver.
 """
+# The module's own description, kept for help(graph).
 
-# time: measures how long each step takes.
+
+# ── IMPORTS ──────────────────────────────────────────────────────────────────
+
 import time
+# Used to measure how long each step takes, in milliseconds.
 
-# Type helpers: Any = any type; TypedDict = a dict with named, typed keys.
 from typing import Any, TypedDict
+# Two helpers for describing types:
+#   TypedDict   describes a dictionary with named keys, each of a known type.
+#               Used below to describe the state.
+#   Any         "any type at all". Used for _detail, which can hold anything.
 
-# Keeps each conversation's state in memory between questions.
 from langgraph.checkpoint.memory import InMemorySaver
+# Keeps each conversation's state between questions, in the server's memory.
+# This is what makes follow-up questions work.
 
-# StateGraph builds the workflow; START and END are its fixed entry and exit points.
 from langgraph.graph import END, START, StateGraph
+# The three things we build the agent from:
+#   StateGraph   the agent itself: a set of steps, and arrows between them
+#   START        the fixed entry point. The first arrow starts here.
+#   END          the fixed exit point. Any arrow to END stops the run.
 
-# OpenTelemetry: sends timing "spans" to Application Insights.
 from opentelemetry import trace
+# OpenTelemetry: a standard way to record what a program is doing, step by
+# step. Each recorded step is called a SPAN. Azure Application Insights
+# receives these spans, so the agent's steps show up in the Azure portal.
 
-# Shared config and connections.
 from agent import context
+# The shared settings (agent/context.py). Used once: to read max_sql_retries.
 
-# The three files that hold the 11 steps.
 from agent.steps import answer, build_query, understand
+# The three files that hold the 11 steps:
+#   understand    steps 1 to 3    (Part 1)
+#   build_query   steps 4 to 8    (Part 2)
+#   answer        steps 9 to 11   (Part 3)
 
-# A tracer creates spans; the name shows up in Application Insights.
+
 tracer = trace.get_tracer("fundgraph.agent")
+# The object that creates spans. "fundgraph.agent" is the name the spans
+# are grouped under in Application Insights.
+#
+# If tracing hasn't been switched on (api/telemetry.py does that when the
+# web app starts), spans cost almost nothing and go nowhere. So this works
+# the same in a test or in Python by hand.
 
 
-# The "state": one dict passed from step to step. Each step returns the keys it changes.
+# ═════════════════════════════════════════════════════════════════════════════
+# THE STATE — the one dictionary every step shares
+# ═════════════════════════════════════════════════════════════════════════════
+
 class AgentState(TypedDict, total=False):
+    # Describes the state: every key any step reads or writes, and its type.
+    #
+    # LangGraph needs this to know what the state looks like. It's also the
+    # one place to see EVERY piece of information the agent works with.
     """
     Everything the steps share. total=False: every field is optional, since
     each step fills in its own part as the question moves through.
     """
-    # The user's question.
+    # total=False means no key is required. At the start, the state holds
+    # only "question". Each step adds its own keys as the question moves along.
+
+    # ── from the user ──
     question: str
+    # The question exactly as the user typed it.
+
     history: list[dict]          # earlier turns in this conversation (kept between questions)
+    # Filled in by step 11. Each entry: the complete question, its SQL, its row count.
+
+    # ── for the demo page ──
     steps: list[dict]            # what each step did and how long it took (for the demo page)
+    # Filled in by _traced() below, never by a step itself.
+
+    # ── how it ended ──
     status: str | None           # completed | blocked | needs_clarification | failed
-    # Why the question was blocked or failed (shown to the user).
+    # None while the question is still going.
+
     block_reason: str | None
-    # The Prompt Shields result from guard_input.
+    # Why it was blocked or failed — the message the user sees.
+
+    # ── Part 1: steps 1 to 3 ──
     prompt_shield: dict
-    # What understand worked out: intent, entities, metrics, data needed.
+    # Step 1: the Content Safety result.
+
     understanding: dict | None
-    # Names in the question matched to exact database values.
+    # Step 2: the nine-field form — intent, names, dates, metrics, data needed.
+
     entities: list[dict]
-    # Names that could not be matched.
+    # Step 3: names matched to exact database values.
+
     unmatched: list[dict]
-    # The tables selected for the SQL.
+    # Step 3: names that couldn't be matched.
+
+    # ── Part 2: steps 4 to 8 ──
     tables: list[str]
+    # Step 4: the tables chosen.
+
     table_picks: list[dict]      # why each table was picked: entity, metric or search (with score)
-    # How the selected tables join, found in the schema graph.
+    # Step 4: the reason for each table.
+
     join_path: dict | None
-    # The SQL query that was written.
+    # Step 5: the joins, from the graph.
+
     sql: str | None
+    # Step 6: the SQL.
+
     sql_tables: list[str]        # the tables the final SQL actually reads
-    # The model's plain-English explanation of the SQL.
+    # Step 7: may be fewer than step 4 chose.
+
     sql_explanation: str | None
-    # The results of the SQL safety checks.
+    # Step 6: one sentence on what the SQL calculates.
+
     checks: list[dict]
-    # How many times SQL has been written so far.
+    # Step 7: every safety check and its result.
+
     attempts: int
+    # How many times SQL has been written. The retry decision reads this.
+
     failed_sql: list[dict]       # SQL attempts that failed a check or the run, before the retry
-    # The last error (a failed check or a failed run); None when all is well.
+    # Steps 7 and 8: every failed attempt, for the demo page.
+
     error: str | None
-    # The query result: column names and rows.
+    # Steps 7 and 8: the last error. None means all is well.
+    # THIS ONE KEY drives the retry loop — see _retry_or() below.
+
     result: dict | None
-    # Numbers worked out from the result (row count, totals, ...).
+    # Step 8: the column names and rows.
+
+    # ── Part 3: steps 9 to 11 ──
     summary: dict | None
-    # The final plain-English answer.
+    # Step 9: row count, totals, first rows.
+
     commentary: str | None
-    # A short note each step leaves for the steps list (removed by _traced).
+    # Step 10: the answer in plain English.
+
     _detail: Any
+    # A short note each step leaves for the steps list. _traced() takes it
+    # out before the state is saved, so it never stays in the state.
 
 
-# Returns a NEW function that runs "step" with timing and tracing around it.
+# ═════════════════════════════════════════════════════════════════════════════
+# TIMING AND TRACING — wrapped around every step
+# ═════════════════════════════════════════════════════════════════════════════
+
 def _traced(name: str, step):
+    # Takes a step's name and its function. Returns a NEW function that runs
+    # the step, with timing and tracing around it.
     """Wrap one step with timing, a steps-list entry and an OpenTelemetry span."""
-    # The wrapped step: LangGraph calls this instead of the step itself.
+    # WHY WRAP INSTEAD OF ADDING CODE TO EACH STEP: the eleven steps stay
+    # clean — they only do their own job. The timing and tracing are written
+    # once, here, and added to every step the same way.
+
     def run(state: AgentState) -> dict:
-        # A precise start time.
+        # The wrapped step. LangGraph calls THIS, not the step directly.
+
         started = time.perf_counter()
-        # Open a span named e.g. "agent.write_sql"; it closes at the end of the block.
+        # Note the start time. perf_counter() is Python's most precise clock
+        # for measuring how long something takes.
+
         with tracer.start_as_current_span(f"agent.{name}") as span:
-            # Run the real step; it returns the state keys it changed.
+            # Open a span named after the step, e.g. "agent.write_sql". It
+            # closes by itself when this block ends, and its timing goes to
+            # Application Insights.
+
             update = step(state)
-            # Attach the step's note to the span (at most 500 characters).
+            # RUN THE REAL STEP. It returns the keys it changed.
+
             span.set_attribute("agent.step.detail", str(update.get("_detail", ""))[:500])
-        # How long the step took, in milliseconds.
+            # Attach the step's note to the span, so it's visible in Azure.
+            # At most 500 characters, to keep the trace small.
+
         ms = round((time.perf_counter() - started) * 1000)
-        # The first step starts a fresh list; every later step appends to it.
+        # How long the step took, in whole milliseconds.
+        # (perf_counter() counts in seconds, so x 1000.)
+
         earlier = [] if name == "guard_input" else (state.get("steps") or [])
-        # Add this step's line; .pop removes "_detail" from the update so it is not stored in state.
+        # The steps list so far.
+        #
+        # guard_input is the FIRST step of every question, so it starts a
+        # fresh list. Without this, a second question in the same
+        # conversation would add its steps onto the first question's list —
+        # because the state is kept between questions.
+
         update["steps"] = earlier + [{"step": name, "ms": ms, "detail": update.pop("_detail", "")}]
-        # LangGraph merges this dict into the state.
+        # Add one line for this step: its name, how long it took, and its note.
+        #
+        # update.pop("_detail", "") takes the note OUT of the update. So the
+        # note goes into the steps list, but isn't saved as a key in the state.
+
         return update
-    # Return the wrapped function (a "closure" that remembers name and step).
+        # Give LangGraph the step's changes, plus the new steps list.
+
     return run
+    # Return the wrapped function. It remembers "name" and "step" from when
+    # it was made — Python calls a function like this a CLOSURE.
 
 
-# ---------------------------------------------------------------------------
-# Where to go after the steps that can branch
-# ---------------------------------------------------------------------------
-# Blocked by Prompt Shields -> stop. Otherwise -> understand.
+# ═════════════════════════════════════════════════════════════════════════════
+# THE DECISIONS — where to go after the steps that can branch
+#
+# Each function below reads the state, and returns the NAME of the next
+# step — or END to stop. LangGraph calls it right after the step finishes.
+# ═════════════════════════════════════════════════════════════════════════════
+
 def _after_guard(state):
-    # Return the name of the next step (END = stop).
+    # After step 1, guard_input.
     return END if state.get("status") == "blocked" else "understand"
+    # Content Safety found an attack -> stop.
+    # Otherwise -> step 2.
 
 
-# Decides where to go after "understand".
 def _after_understand(state):
+    # After step 2, understand.
+
     # blocked = a request to change data, or off topic; needs_clarification = ask back.
     return END if state.get("status") in ("blocked", "needs_clarification") else "match_entities"
+    # A request to change data, off topic, or unclear -> stop.
+    # Otherwise -> step 3.
 
 
-# write_sql refused (e.g. asked to change data) -> stop. Otherwise -> check_sql.
 def _after_write(state):
-    # Return the name of the next step (END = stop).
+    # After step 6, write_sql.
     return END if state.get("status") == "blocked" else "check_sql"
+    # The model refused to write SQL -> stop.
+    # Otherwise -> step 7.
 
 
-# Builds a chooser function for check_sql (next = run_sql) and run_sql (next = summarise).
 def _retry_or(next_step: str):
+    # Makes the decision function used after step 7 AND after step 8.
+    # They decide the same way; only the "carry on" step is different:
+    #   after check_sql  ->  next_step is "run_sql"
+    #   after run_sql    ->  next_step is "summarise"
     """After check_sql or run_sql: carry on if no error; otherwise retry, or stop when out of retries."""
-    # The function LangGraph calls to choose the next step.
+
     def decide(state):
-        # No error: go on to the next step.
+        # The decision itself. THIS IS THE RETRY LOOP.
+
         if not state.get("error"):
-            # Go on.
+            # No error — the check passed, or the query ran.
             return next_step
-        # Retries left: go back and rewrite the SQL (the error is passed along).
+            # Carry on.
+
         if state["attempts"] <= context.agent_config()["max_sql_retries"]:
-            # Rewrite the SQL.
+            # There was an error, and retries are left.
             return "write_sql"
-        # Out of retries.
+            # Go BACK to step 6. Step 6 sees the error in the state, and
+            # puts it in the model's prompt so the model can fix the SQL.
+
         return "give_up"
-    # Return the chooser function.
+        # Out of retries.
+
+    # HOW MANY ATTEMPTS, EXACTLY: max_sql_retries is 2 in agent.yaml.
+    #   attempt 1 fails  ->  1 <= 2  ->  retry
+    #   attempt 2 fails  ->  2 <= 2  ->  retry
+    #   attempt 3 fails  ->  3 >  2  ->  give up
+    # So at most 3 attempts: the first try, plus 2 retries.
+
     return decide
+    # Return the decision function.
 
 
-# The final step when every SQL attempt failed: report why.
 def _give_up(state):
-    # Mark the question as failed, with the last error.
+    # The last step when every SQL attempt failed.
     return {"status": "failed", "block_reason": f"Could not produce a working query after "
-                                                # (continued: how many attempts, and the last error)
                                                 f"{state['attempts']} attempts: {state['error']}"}
+    # status "failed", and a message saying how many attempts were made and
+    # the last error. The user sees this instead of an answer.
+    #
+    # Note: this isn't wrapped with _traced(). It only writes a message, so
+    # it doesn't need timing, and it doesn't appear in the steps list.
 
 
-# Build and compile the workflow (done once, below).
+# ═════════════════════════════════════════════════════════════════════════════
+# BUILDING THE AGENT
+# ═════════════════════════════════════════════════════════════════════════════
+
 def build():
-    # An empty workflow whose state has the AgentState shape.
+    # Describes all 11 steps and the arrows between them, then turns that
+    # description into a runnable agent.
+
     graph = StateGraph(AgentState)
-    # Step name -> the function that does it.
+    # An empty agent, whose state has the AgentState shape.
+
     steps = {
-        # Step 1: Prompt Shields check.
+        # Every step's NAME, and the function that does it.
+        # The names are what the arrows below refer to.
+
         "guard_input": understand.guard_input,
-        # Step 2: work out what is asked.
+        # Step 1: check for attacks.
+
         "understand": understand.understand,
-        # Step 3: match names to exact database values.
+        # Step 2: work out what is being asked.
+
         "match_entities": understand.match_entities,
-        # Step 4: choose the tables.
+        # Step 3: match names to exact database values.
+
         "select_tables": build_query.select_tables,
-        # Step 5: find how to join them.
+        # Step 4: choose the tables.
+
         "find_join_path": build_query.find_join_path,
-        # Step 6: write the SQL.
+        # Step 5: find how to join them.
+
         "write_sql": build_query.write_sql,
-        # Step 7: check the SQL.
+        # Step 6: write the SQL.
+
         "check_sql": build_query.check_sql,
-        # Step 8: run it read-only.
+        # Step 7: check the SQL.
+
         "run_sql": build_query.run_sql,
-        # Step 9: summarise the result.
+        # Step 8: run it, read only.
+
         "summarise": answer.summarise,
-        # Step 10: explain it in plain English.
+        # Step 9: summarise the result.
+
         "write_commentary": answer.write_commentary,
-        # Step 11: save the turn for follow-ups.
+        # Step 10: explain it in plain English.
+
         "remember": answer.remember,
+        # Step 11: save the question for follow-ups.
     }
-    # Add every step as a "node", wrapped with timing and tracing.
+
     for name, step in steps.items():
-        # add_node(name, function): the step is now part of the graph.
+        # For each of the 11 steps:
         graph.add_node(name, _traced(name, step))
-    # give_up is not traced (it only writes a message).
+        # Add it to the agent, wrapped with timing and tracing.
+        # LangGraph calls each step a NODE.
+
     graph.add_node("give_up", _give_up)
+    # The 12th node: the one that reports a failure. Not traced.
 
-    # Edges = arrows between steps. add_edge is always taken;
-    # add_conditional_edges asks a function (e.g. _after_guard) which arrow to take,
-    # and the list names every possible destination.
+    # ── THE ARROWS ──
+    # LangGraph calls each arrow an EDGE. Two kinds:
+    #   add_edge(a, b)                       always go from a to b
+    #   add_conditional_edges(a, decide, [...])
+    #                                        after a, ask "decide" where to go.
+    #                                        The list names every place it
+    #                                        could go, so LangGraph can check
+    #                                        the agent is complete.
+
     graph.add_edge(START, "guard_input")
-    # After guard_input: _after_guard chooses understand or END.
+    # Every question starts at step 1.
+
     graph.add_conditional_edges("guard_input", _after_guard, ["understand", END])
-    # After understand: _after_understand chooses match_entities or END.
+    # After step 1: step 2, or stop.
+
     graph.add_conditional_edges("understand", _after_understand, ["match_entities", END])
-    # match_entities is always followed by select_tables ...
+    # After step 2: step 3, or stop.
+
     graph.add_edge("match_entities", "select_tables")
-    # ... then find_join_path ...
+    # Step 3 -> step 4, always.
+
     graph.add_edge("select_tables", "find_join_path")
-    # ... then write_sql.
+    # Step 4 -> step 5, always.
+
     graph.add_edge("find_join_path", "write_sql")
-    # After write_sql: check_sql, or END if the model refused.
+    # Step 5 -> step 6, always.
+
     graph.add_conditional_edges("write_sql", _after_write, ["check_sql", END])
-    # After check_sql: run_sql if all checks passed, else write_sql again, or give_up.
+    # After step 6: step 7, or stop if the model refused.
+
     graph.add_conditional_edges("check_sql", _retry_or("run_sql"), ["run_sql", "write_sql", "give_up"])
-    # After run_sql: summarise if it ran, else write_sql again, or give_up.
+    # After step 7: step 8 if every check passed; back to step 6 if not and
+    # retries are left; give up if not.
+
     graph.add_conditional_edges("run_sql", _retry_or("summarise"), ["summarise", "write_sql", "give_up"])
-    # summarise -> write_commentary ...
+    # After step 8: step 9 if the query ran; back to step 6 if it failed and
+    # retries are left; give up if not.
+
     graph.add_edge("summarise", "write_commentary")
-    # ... -> remember ...
+    # Step 9 -> step 10, always.
+
     graph.add_edge("write_commentary", "remember")
-    # ... -> END (finished).
+    # Step 10 -> step 11, always.
+
     graph.add_edge("remember", END)
-    # give_up also ends the run.
+    # Step 11 -> finished. The question is answered.
+
     graph.add_edge("give_up", END)
-    # compile() turns the description into a runnable agent; the checkpointer keeps conversation state.
+    # After giving up -> finished, with status "failed".
+
     return graph.compile(checkpointer=InMemorySaver())
+    # compile() turns the description into a runnable agent. It also checks
+    # every arrow points to a real step.
+    #
+    # checkpointer=InMemorySaver() keeps each conversation's state after
+    # every run, in the server's memory. The next question in the same
+    # conversation starts from that saved state — which is why "history"
+    # is still there for a follow-up.
+    #
+    # THE CATCH: it's in the server's memory. Restart the server, and every
+    # conversation is forgotten. Stage 8 will save it in PostgreSQL instead
+    # (see config/memory.yaml).
 
 
-# Built once when the module is first imported, then reused for every question.
 AGENT = build()
+# Build the agent ONCE, when this file is first imported, and keep it.
+# Every question reuses this same agent. Building it for every question
+# would waste time, and would throw away the saved conversations.
 
 
-# Called by api/main.py for every question.
+# ═════════════════════════════════════════════════════════════════════════════
+# ask() — THE ONE FUNCTION EVERYTHING ELSE USES
+# ═════════════════════════════════════════════════════════════════════════════
+
 def ask(question: str, conversation_id: str) -> dict:
+    # Takes:
+    #   question          what the user typed
+    #   conversation_id   which conversation this belongs to. Any text; the
+    #                     same id means "a follow-up in the same conversation".
+    # Returns: the final state — everything every step worked out.
     """Run one question through the agent, within a conversation."""
-    # One span around the whole question; every step's span sits inside it.
+
     with tracer.start_as_current_span("agent.ask") as span:
-        # Run the workflow. thread_id picks which conversation's saved state to continue.
+        # One span around the WHOLE question. The eleven step spans sit
+        # inside it, so Application Insights shows them as one run.
+
         state = AGENT.invoke({"question": question},
-                             # thread_id = which conversation to continue.
                              config={"configurable": {"thread_id": conversation_id}})
-        # Record the outcome and the tables used, for Application Insights.
+        # RUN THE AGENT.
+        #
+        #   {"question": question}
+        #       the starting state: just the question. Everything else is
+        #       either filled in by the steps, or carried over from the
+        #       saved conversation.
+        #
+        #   config={"configurable": {"thread_id": conversation_id}}
+        #       which saved conversation to continue. LangGraph calls a
+        #       conversation a "thread". A new id starts a fresh conversation;
+        #       the same id continues one, so its "history" is there.
+        #
+        # invoke() runs step after step, following the arrows, until it
+        # reaches END. Then it returns the final state.
+
         span.set_attribute("agent.status", str(state.get("status")))
-        # The selected tables as one comma-separated text.
+        # Record how it ended — completed, blocked, failed — on the span.
+
         span.set_attribute("agent.tables", ",".join(state.get("tables") or []))
-    # The final state: status, SQL, result, commentary, steps, ...
+        # And which tables were chosen. Both are then searchable in
+        # Application Insights, e.g. "show me every failed question".
+
     return state
+    # The final state. The caller reads what it needs from it:
+    #   state["status"]       how it ended
+    #   state["commentary"]   the answer
+    #   state["result"]       the rows
+    #   state["sql"]          the SQL
+    #   state["steps"]        every step, with its time

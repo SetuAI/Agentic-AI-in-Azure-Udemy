@@ -1,0 +1,26 @@
+# Azure AI Content Safety - Stage 1 fast check and custom blocklist
+azure-ai-contentsafety
+
+# Azure Event Hubs - receives the stream of incoming comments
+azure-eventhub
+
+# Azure Service Bus - queue of comments waiting for a human moderator
+azure-servicebus
+
+# Azure Cosmos DB - stores every moderation decision
+azure-cosmos
+
+# Application Insights - counts, latency and cost per stage
+azure-monitor-opentelemetry
+
+# Stage 2 agent - LangGraph on Azure OpenAI
+langgraph
+langchain-openai
+
+# Review UI
+fastapi
+uvicorn
+jinja2
+
+# reads the .env file
+python-dotenv

@@ -2,21 +2,41 @@
 # config/metrics.yaml
 # =============================================================================
 #
-# Approved definitions of business numbers (tradeoff 5). When a question asks
-# for one of these, the SQL-writing model is given this exact definition, so
-# "net flows" is calculated the same way every time, the way the business
-# defines it, instead of however the model guesses.
+# PURPOSE:
+#   The approved definitions of business numbers — net flows, redemptions,
+#   AUM, rejection rate, and so on. Each one says, in exact SQL terms, how
+#   that number is calculated.
 #
-# The client's business team signs off this file (Stage 5 sign-off).
+# WHAT PROBLEM DOES THIS SOLVE:
+#   Ask a model to calculate "net flows" and it will guess. One day it
+#   counts rejected transactions, the next day it does not. The numbers
+#   change from question to question, and nobody notices.
 #
-# HOW IT IS READ: agent/context.py -> metrics() returns the "metrics" dict.
-# Every metric has the same 3 fields:
-#   description -> one plain-English line (used to recognise the metric)
-#   definition  -> the exact SQL recipe given to the SQL-writing model
-#                  (">" means "the indented lines below are one long text")
-#   tables      -> the tables that recipe needs (added to the search results)
-# To add a new metric: copy one block, give it a new snake_case name, and
-# fill in the same 3 fields.
+#   With this file, the definition is fixed. The business team signs it
+#   off once, and the model is GIVEN the definition instead of guessing it.
+#
+# WHO READS IT:
+#   agent/context.py -> metrics() reads it once and returns the "metrics"
+#   section, so metrics()["net_flows"] is the first block below.
+#
+# HOW EACH VIDEO USES IT:
+#   6A, step 2   the model is shown only the NAME and DESCRIPTION of every
+#                metric, and says which ones the question needs.
+#                "Why did net flows ... drop?" -> ["net_flows"]
+#   6B, step 4   the metric's TABLES are added to the tables for the query
+#   6B, step 6   the metric's DEFINITION is given to the model writing the SQL
+#
+# EVERY METRIC HAS THE SAME 3 FIELDS:
+#   description   one plain-English line. Step 2 uses this to recognise
+#                 the metric in a question.
+#   definition    the exact recipe for the SQL.
+#                 ">" means "the indented lines below are one long piece of text".
+#   tables        the tables that recipe needs.
+#
+# TO ADD A NEW METRIC: copy one block, give it a new name in snake_case
+# (lowercase words joined by _), and fill in the same 3 fields. Step 2 will
+# offer it to the model straight away — after a server restart, because
+# context.py reads this file only once.
 # =============================================================================
 
 metrics:

@@ -2,29 +2,51 @@
 # evals/answer_key/planted_patterns.yaml
 # =============================================================================
 #
-# WHAT THIS FILE IS FOR
-# ---------------------
-# The 6 patterns deliberately planted in the synthetic data, written as the
-# correct answers to the demo and evaluation questions. In Stage 9, the
-# pipeline's answers are scored against these.
+# PURPOSE:
+#   The ANSWER KEY for the 6 stories we deliberately planted in the fake
+#   data. Each one has a question that should reveal it, and the facts a
+#   correct answer must contain.
 #
-# Lives in evals/, never in config/, for the same reason as hidden_links.yaml:
-# the pipeline reads config/, and must not be able to read the answers.
+# WHY PLANT PATTERNS AT ALL:
+#   Random data has no story in it. Ask "why did net flows drop?" and the
+#   honest answer would be "no reason". The generator in Part 3 puts 6 real
+#   stories into the data on purpose — a bond downgrade followed by
+#   redemptions, a distributor with too many rejections, and so on.
+#   Because we know the right answers, we can check whether the agent finds them.
 #
-# The exact numbers (rupee amounts, counts) depend on seed and scale, so
-# they are not written here. What is fixed: which scheme, which company,
-# which dates, and which direction the numbers move.
+# WHERE THE PATTERNS ARE CREATED:
+#   dataplane/generator/patterns.py. Each pattern below says which P1_*,
+#   P2_* ... settings in that file create it.
+#
+# WHY THIS FILE LIVES IN evals/, NEVER IN config/:
+#   Same reason as hidden_links.yaml. The pipeline reads config/. If the
+#   answers were there, the agent could read them instead of finding them
+#   in the data.
+#
+# WHY NO EXACT NUMBERS:
+#   Rupee amounts and counts change with the seed and the scale in
+#   generator.yaml. What never changes: which scheme, which company, which
+#   dates, and which way the numbers move. So those are what's written here.
+#
+# HOW IT'S USED:
+#   In Stage 9, the evaluation scores the agent's answers against these facts.
+#   Today you can use it yourself: ask the agent each demo_question, and
+#   compare its answer with the facts below.
+#
+# THE FIELDS:
+#   name             a short title
+#   demo_question    the question that should reveal the pattern
+#   facts            what a correct answer must contain
+#   tables_needed    the tables a correct query has to use
+#   note / correct_wording   extra guidance for whoever is scoring
+#
+# Lines starting with "#" are comments. YAML ignores them.
 # =============================================================================
 
-# Each "- id:" item below is one pattern. Fields:
-#   name           -> short title
-#   demo_question  -> the question that should reveal it
-#   facts          -> the fixed facts a correct answer must contain
-#   tables_needed  -> the tables a correct query has to use
-#   note / correct_wording -> extra guidance for the scorer
 planted_patterns:
 
-  # Pattern 1: see P1_* in dataplane/generator/patterns.py.
+  # ── PATTERN 1 — redemptions after a bond downgrade ─────────────────────────
+  # The main demo question of the whole course.
   - id: 1
     name: Redemption spike after a bond downgrade
     demo_question: Why did net flows in Sahyadri Credit Risk Fund drop in March 2024?
@@ -36,8 +58,18 @@ planted_patterns:
       nav_effect: Credit Risk Fund NAV drops about 1.8% on 2024-03-12.
     tables_needed: [schemes, scheme_plans, transactions, portfolio_holdings, securities, issuers, credit_rating_history]
     correct_wording: The drop happened in the same month as the downgrade. The data shows timing, not cause.
+  # THE STORY: a bond the fund holds is cut from AA- to BBB- on 12 March 2024.
+  # Investors pull their money out, so redemptions jump to about ten times
+  # normal, and net flows go negative.
+  #
+  # WHY IT'S HARD: the answer needs 7 tables, and the route from
+  # transactions to credit ratings uses hidden link 2 (sec_cd -> security_code).
+  #
+  # correct_wording: the data shows the two things happened in the same
+  # month. It does NOT prove the downgrade CAUSED the redemptions. A correct
+  # answer says "at the same time", never "because of".
 
-  # Pattern 2: see P2_* in dataplane/generator/patterns.py.
+  # ── PATTERN 2 — too much money in one business group ──────────────────────
   - id: 2
     name: High exposure to one business group
     demo_question: Which scheme has the highest exposure to a single business group?
@@ -46,8 +78,14 @@ planted_patterns:
       group: Trident Group
       exposure: About 24% across 5 companies, each under 10% on its own.
     tables_needed: [portfolio_holdings, securities, issuers, issuer_groups, schemes]
+  # THE STORY: the Mid Cap Fund holds 5 companies from the same business
+  # group. Each is under 10%, so each looks fine on its own. Added up,
+  # they're about 24% — a lot of risk in one group.
+  #
+  # WHY IT'S HARD: you only see it if you add the holdings up by GROUP,
+  # which means joining all the way through issuers to issuer_groups.
 
-  # Pattern 3: see P3_* in dataplane/generator/patterns.py.
+  # ── PATTERN 3 — performance changes with a new manager ────────────────────
   - id: 3
     name: Performance change after a manager change
     demo_question: Did Sahyadri Focused Fund perform differently after its manager changed?
@@ -57,8 +95,13 @@ planted_patterns:
       new_manager: Meera Iyer (from 2023-10-03)
       effect: Trails its benchmark before the change, beats it after.
     tables_needed: [schemes, scheme_manager_assignments, fund_managers, nav_history, scheme_plans, benchmark_values]
+  # THE STORY: the fund does worse than its benchmark index under the old
+  # manager, and better under the new one.
+  #
+  # WHY IT'S HARD: it needs the manager dates, the fund's NAV, AND the
+  # benchmark's values, compared over two periods.
 
-  # Pattern 4: see P4_* in dataplane/generator/patterns.py.
+  # ── PATTERN 4 — SIP cancellations rising in small cities ──────────────────
   - id: 4
     name: SIP cancellations rising in one city tier
     demo_question: Where are SIP cancellations rising?
@@ -67,8 +110,14 @@ planted_patterns:
       from: 2025-09-01
       effect: Tier-3 cancellations in the last 12 months are more than 3x the previous 12 months. Tiers 1 and 2 barely change.
     tables_needed: [sip_registrations, folios, investors]
+  # THE STORY: from September 2025, investors in tier-3 cities (smaller
+  # towns) cancel their monthly SIPs at more than three times the old rate.
+  # Big cities don't change.
+  #
+  # WHY IT'S HARD: the question doesn't say "city tier" — the agent has to
+  # work out that "where" means grouping by tier, through folios to investors.
 
-  # Pattern 5: see P5_* in dataplane/generator/patterns.py.
+  # ── PATTERN 5 — one distributor with too many rejections ──────────────────
   - id: 5
     name: One distributor with a high rejection rate
     demo_question: Which distributor has the highest transaction rejection rate?
@@ -78,8 +127,14 @@ planted_patterns:
       effect: About 17% of its transactions rejected, against about 2% for others.
     tables_needed: [transactions, distributors]
     note: Joins transactions.arn_code to distributors.arn_no, which is hidden link 3.
+  # THE STORY: one distributor's transactions are rejected about 17% of the
+  # time. Everyone else is around 2%. Something is wrong with how that
+  # distributor submits paperwork.
+  #
+  # WHY IT'S HARD: only two tables, but the one join between them is hidden
+  # link 3. Without Part 4's link discovery, this can't be answered at all.
 
-  # Pattern 6: see P6_* in dataplane/generator/patterns.py.
+  # ── PATTERN 6 — one fund breaks the 10% limit ─────────────────────────────
   - id: 6
     name: One scheme above the 10% single-issuer limit
     demo_question: Is any scheme above the 10% single-issuer limit?
@@ -88,7 +143,15 @@ planted_patterns:
       issuer: Malabar Commercial Bank Ltd
       weight: 12.4% from 2026-03-31 (8.5% before)
     tables_needed: [portfolio_holdings, securities, issuers, schemes]
-    note: >
+    note: >-
       Government issuers are exempt from the limit. Gilt and liquid funds hold
       far more than 10% in the Government of India, and a correct answer
       excludes them. Only Malabar Commercial Bank breaches the limit.
+  # THE STORY: a rule says a fund may not put more than 10% of its money in
+  # one company. From March 2026, the Banking Fund holds 12.4% in one bank.
+  #
+  # WHY IT'S HARD — THE TRAP: government bond funds hold FAR more than 10%
+  # in the Government of India, and that's allowed. A naive answer lists
+  # every gilt fund. A correct one knows the government is exempt. That rule
+  # is written into the issuer_exposure definition in metrics.yaml, which is
+  # how the agent gets it right.
