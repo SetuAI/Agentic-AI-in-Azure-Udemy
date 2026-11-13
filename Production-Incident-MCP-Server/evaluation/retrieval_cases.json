@@ -1,0 +1,26 @@
+{
+  "_readme": [
+    "Search questions for the postmortem index, each with the ONE postmortem that should come back.",
+    "Most are worded differently from the postmortem's title on purpose, so we test meaning, not copied words.",
+    "service: the app filter the AI would add, or null for none.",
+    "Two questions are 'near misses' (OTP problems that are NOT the QuickSMS outage, payments problems that are NOT the pool), to check the search picks the right one of two similar reports."
+  ],
+  "cases": [
+    {"query": "payments database connection pool timeouts", "service": "payments", "expected": "PM-2026-03"},
+    {"query": "timed out waiting for a database connection after a release", "service": null, "expected": "PM-2026-03"},
+    {"query": "auto-debit failing because the DB pool was made smaller", "service": null, "expected": "PM-2026-03"},
+    {"query": "SMS provider returned 503, OTPs not reaching customers", "service": "notifications", "expected": "PM-2025-11"},
+    {"query": "third-party SMS vendor outage", "service": null, "expected": "PM-2025-11"},
+    {"query": "bank rejected the transfer, beneficiary account frozen BNK-417", "service": null, "expected": "PM-2026-01"},
+    {"query": "loan money could not be sent to the customer's account", "service": "payments", "expected": "PM-2026-01"},
+    {"query": "credit check slow, bureau not responding", "service": "loan-service", "expected": "PM-2025-09"},
+    {"query": "customers charged two times for one EMI", "service": null, "expected": "PM-2025-12"},
+    {"query": "duplicate debit from the nightly job", "service": "payments", "expected": "PM-2025-12"},
+    {"query": "OTP requests getting 429 too many requests at the gateway", "service": null, "expected": "PM-2026-05"},
+    {"query": "OTPs failing, but the SMS provider was fine; requests were blocked before sending", "service": "notifications", "expected": "PM-2026-05"},
+    {"query": "SMS told customers the wrong EMI amount", "service": null, "expected": "PM-2026-07"},
+    {"query": "message template bug in confirmation texts", "service": "notifications", "expected": "PM-2026-07"},
+    {"query": "loan status page taking many seconds to load", "service": null, "expected": "PM-2026-08"},
+    {"query": "slow query after the table got bigger, missing index", "service": "loan-service", "expected": "PM-2026-08"}
+  ]
+}

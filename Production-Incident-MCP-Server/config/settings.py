@@ -73,6 +73,43 @@ DISPLAY_TIMEZONE = os.getenv("DISPLAY_TIMEZONE", "Asia/Kolkata")
 
 
 # ---------------------------------------------------------------------------
+# Azure AI Content Safety: Prompt Shields checks log text before the AI reads it
+# ---------------------------------------------------------------------------
+
+# The Content Safety resource's address, like https://<name>.cognitiveservices.azure.com/
+# If it is empty, the tools still work, but every log message is hidden from the AI.
+CONTENT_SAFETY_ENDPOINT = os.getenv("CONTENT_SAFETY_ENDPOINT", "")
+
+
+# ---------------------------------------------------------------------------
+# Azure AI Search: holds the past postmortems, for the search_postmortems tool
+# ---------------------------------------------------------------------------
+
+# The search service's address, like https://<name>.search.windows.net
+AI_SEARCH_ENDPOINT = os.getenv("AI_SEARCH_ENDPOINT", "")
+
+# The name of the index that holds the postmortems.
+POSTMORTEM_INDEX = os.getenv("POSTMORTEM_INDEX", "postmortems")
+
+
+# ---------------------------------------------------------------------------
+# Evaluation only (the evaluation/ folder). The server never reads these.
+# ---------------------------------------------------------------------------
+
+# The MCP server the evaluation asks its questions through. Your laptop by default.
+EVAL_MCP_URL = os.getenv("EVAL_MCP_URL", "http://localhost:8000/mcp")
+
+# The Azure OpenAI resource's address, like https://<name>.openai.azure.com/
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+
+# The name of the model deployment that plays the AI app, and the judge.
+AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.1")
+
+# The Azure OpenAI API version to call.
+AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2025-04-01-preview")
+
+
+# ---------------------------------------------------------------------------
 # A helper that stops early, with a clear message, when a setting is empty
 # ---------------------------------------------------------------------------
 

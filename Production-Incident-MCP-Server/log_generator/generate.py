@@ -12,7 +12,7 @@ WHAT PROBLEM IT SOLVES
 ----------------------
 We need production logs to search, but we cannot use a real bank's logs.
 So we create our own: mostly normal traffic, a few everyday failures, and
-3 real-looking incidents whose answers we know in advance.
+4 real-looking incidents whose answers we know in advance.
 
 HOW IT WORKS, STEP BY STEP
 --------------------------
@@ -23,7 +23,7 @@ HOW IT WORKS, STEP BY STEP
     3. Each request passes through its apps. Each app writes one line.
        If an incident is active for that app at that moment, the line
        becomes the incident's error instead.
-    4. Add the one hand-written request (req-8f3a21) and the deployments.
+    4. Add the one hand-written request (req-8f3a21), the poisoned line and the deployments.
     5. Save everything to data/.
 
 HOW TO RUN
@@ -39,6 +39,7 @@ About 20,000 log lines and 6 deployments, saved as:
     data/deployments.json         (all the releases)
     data/sample_app_logs.json     (20 lines, to upload in the Azure portal
     data/sample_deployments.json   when you create the tables)
+    data/run_info.json            (which date counted as "today", for the evaluation)
 and a short summary printed on screen, including how many errors each
 incident created.
 """
@@ -67,7 +68,7 @@ from config.logging_config import get_logger
 # The 4 apps, their requests and their normal messages.
 from log_generator import services
 
-# The 3 planted incidents and the deployments.
+# The 4 planted incidents and the deployments.
 from log_generator import incidents
 
 # A logger named after this file.
@@ -77,7 +78,7 @@ logger = get_logger(__name__)
 # Azure only keeps a log's own time if it is at most 2 days (48 hours) older than
 # the moment Azure receives it. Older lines get the upload time instead, which would
 # put them at the wrong time. 42 hours leaves 6 hours to finish the upload, and still
-# covers all 3 incidents.
+# covers all 4 incidents.
 HOURS_OF_LOGS = 42
 
 # A fixed starting point for the random numbers, so every run makes similar logs.
@@ -284,6 +285,19 @@ def make_traced_request(today: datetime) -> list:
     return lines
 
 
+# Creates the one poisoned log line (incident 4) exactly as written in incidents.py.
+def make_poisoned_line(today: datetime) -> list:
+    """Return the (time, log line) pair for the poisoned line."""
+    # The poisoned line's details.
+    poisoned = incidents.POISONED_LINE
+    # When it was written.
+    moment = to_time(today, poisoned["starts"])
+    # One line, in a one-item list, the same shape as the other helpers return.
+    return [(moment, log_line(moment, poisoned["service"], poisoned["level"], poisoned["message"],
+                              poisoned["request_id"], poisoned["endpoint"], poisoned["status"],
+                              poisoned["duration_ms"]))]
+
+
 # Creates one row per deployment for the Deployments_CL table.
 def make_deployments(today: datetime) -> list:
     """Return (time, row) pairs for every deployment."""
@@ -327,7 +341,7 @@ def save(rows: list, file_name: str) -> None:
 
 # Runs the whole generator.
 def main() -> None:
-    """Create 42 hours of logs with the 3 incidents and save them to data/."""
+    """Create 42 hours of logs with the 4 incidents and save them to data/."""
     # The random number maker, started from our fixed seed.
     rng = random.Random(RANDOM_SEED)
     # The time right now, in India time.
@@ -381,6 +395,8 @@ def main() -> None:
 
     # Add the planted request req-8f3a21.
     lines.extend(make_traced_request(today))
+    # Add the poisoned line (incident 4).
+    lines.extend(make_poisoned_line(today))
     # Keep only lines inside our 42 hours (none in the future, none too old), sorted by time.
     lines = sorted((pair for pair in lines if start <= pair[0] <= now), key=lambda pair: pair[0])
     # Create the deployments, keep only those inside our 42 hours, sorted by time.
@@ -401,6 +417,21 @@ def main() -> None:
     save(log_rows[:SAMPLE_SIZE], "sample_app_logs.json")
     # Save a few deployments for creating the Deployments_CL table in the portal.
     save(deployment_rows[:5], "sample_deployments.json")
+    # Save which date counted as "today". evaluation/run_eval.py reads it to put real dates in its questions.
+    run_info = {
+        # "Today" for the incidents, like 2026-11-12.
+        "today": f"{today:%Y-%m-%d}",
+        # The day before.
+        "yesterday": f"{today - timedelta(days=1):%Y-%m-%d}",
+        # When these logs were created, in local time.
+        "created_at": f"{now:%Y-%m-%d %H:%M}",
+        # The time zone of all the times above.
+        "timezone": settings.DISPLAY_TIMEZONE,
+    }
+    # Write it as a small JSON file next to the logs.
+    (DATA_DIR / "run_info.json").write_text(json.dumps(run_info, indent=2), encoding="utf-8")
+    # Say where it went.
+    logger.info("Saved run info (today = %s) to %s", run_info["today"], DATA_DIR / "run_info.json")
 
     # Print how many errors each incident created, as a quick check that they are there.
     for incident, starts, ends in windows:
@@ -409,6 +440,10 @@ def main() -> None:
         # Print the incident's name, its time window and the count.
         logger.info("%s: %s errors between %s and %s", incident["name"], count,
                     f"{starts:%d %b %H:%M}", f"{ends:%d %b %H:%M}")
+
+    # Print when the poisoned line was written, so you know where to look for it.
+    logger.info("%s: 1 line from %s at %s", incidents.POISONED_LINE["name"],
+                incidents.POISONED_LINE["service"], f"{to_time(today, incidents.POISONED_LINE['starts']):%d %b %H:%M}")
 
 
 # Run main() only when this file is started directly (not when it is imported).

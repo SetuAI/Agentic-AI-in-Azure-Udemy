@@ -5,7 +5,7 @@
 
 - It **stores** every log line from the 4 apps (table `AppLogs_CL`) and every release (table `Deployments_CL`).
 - It **searches** them with KQL when a tool asks.
-- Every tool on our MCP server reads from here. Without it, there is nothing to search.
+- 8 of our 9 tools read from here (only `search_postmortems` uses Azure AI Search instead). Without it, there is nothing to search.
 
 How data gets in and out:
 

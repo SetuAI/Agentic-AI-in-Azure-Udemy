@@ -29,6 +29,10 @@ dependencies = [
     "mcp>=2.3.0",
     # Reads the .env file into environment variables (config/settings.py).
     "python-dotenv>=1.0.0",
+    # Sends web requests to Azure AI Content Safety Prompt Shields (mcp_server/shields.py).
+    "requests>=2.31.0",
+    # Searches the past postmortems in Azure AI Search (mcp_server/postmortems.py).
+    "azure-search-documents>=11.6.0",
     # The web server that runs the MCP server.
     "uvicorn>=0.30.0",
 ]
@@ -38,6 +42,11 @@ dependencies = [
 dev = [
     # Test runner: run "uv run pytest" to execute the tests/ folder.
     "pytest>=8.0.0",
+]
+# Libraries needed only to run the evaluation (evaluation/run_eval.py). Install with: uv sync --group eval
+eval = [
+    # Talks to Azure OpenAI (gpt-5.1), which plays the AI app and the judge.
+    "openai>=1.60.0",
 ]
 
 # Settings for pytest.

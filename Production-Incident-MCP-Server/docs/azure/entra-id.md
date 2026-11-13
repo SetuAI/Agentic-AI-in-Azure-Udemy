@@ -5,12 +5,12 @@
 
 Entra ID decides **who** may do **what** in Azure. We use two identities:
 
-| Identity                                            | Used where        | Allowed to                                          | Role                                                                                                   |
-| --------------------------------------------------- | ----------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **App registration** `incident-logs-loader` | Your laptop       | Upload logs, and search them while you test locally | **Monitoring Metrics Publisher** on the DCR, and **Log Analytics Reader** on the workspace |
-| **Managed identity** of the web app           | Azure App Service | Search logs, nothing else                           | **Log Analytics Reader** on the workspace                                                        |
+| Identity                                            | Used where        | Allowed to                                                                    | Role                                                                                                                                                                                                                                                            |
+| --------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **App registration** `incident-logs-loader` | Your laptop       | Upload logs and postmortems, and use every tool while you test locally        | **Monitoring Metrics Publisher** on the DCR, **Log Analytics Reader** on the workspace, **Cognitive Services User** on Content Safety, **Search Service Contributor** and **Search Index Data Contributor** on the search service |
+| **Managed identity** of the web app           | Azure App Service | Search logs and postmortems, and check text with Prompt Shields. Nothing else | **Log Analytics Reader** on the workspace, **Cognitive Services User** on Content Safety, **Search Index Data Reader** on the search service                                                                                                  |
 
-So the server on Azure can **read** logs but can never change or delete them, and it holds no password at all. The managed identity is set up in [app-service.md](app-service.md).
+So the server on Azure can **read** logs and postmortems but can never change or delete them, and it holds no password at all. The extra roles are set up in [content-safety.md](content-safety.md) and [ai-search.md](ai-search.md). The managed identity is set up in [app-service.md](app-service.md).
 
 How the code signs in: every file uses `DefaultAzureCredential()`. It looks for a way to sign in, in order:
 

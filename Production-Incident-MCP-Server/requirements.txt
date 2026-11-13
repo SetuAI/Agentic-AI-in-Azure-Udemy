@@ -14,5 +14,9 @@ azure-monitor-query>=2.0.0
 mcp>=2.3.0
 # Reads .env files (on App Service there is none, and that is fine).
 python-dotenv>=1.0.0
+# Sends web requests to Azure AI Content Safety Prompt Shields (mcp_server/shields.py).
+requests>=2.31.0
+# Searches the past postmortems in Azure AI Search (mcp_server/postmortems.py).
+azure-search-documents>=11.6.0
 # The web server that runs the MCP server.
 uvicorn>=0.30.0

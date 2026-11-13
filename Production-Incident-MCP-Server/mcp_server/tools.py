@@ -4,7 +4,7 @@ mcp_server/tools.py
 
 WHAT THIS FILE IS FOR
 ---------------------
-The 5 tools our MCP server offers. An AI app (Claude, Claude Code, VS Code
+The tools our MCP server offers. An AI app (Claude, Claude Code, VS Code
 Copilot) reads each tool's name and description, decides which ones to call
 for your question, and calls them. Each tool searches the logs in Azure Log
 Analytics and returns what it found.
@@ -13,6 +13,10 @@ Analytics and returns what it found.
     get_errors          the most common error messages of one app in a time range
     trace_request       every step of one request, across all apps
     what_changed        every app release in a time range
+    get_slow_endpoints  the slowest kinds of request in a time range
+    compare_periods     one app's error rate and speed, before vs after a moment
+    find_root_service   for failed requests, which app failed FIRST
+    search_postmortems  past incident reports: has this happened before, and what fixed it?
     run_log_query       any other search, written by the AI itself (with safety checks)
 
 WHO READS WHAT
@@ -35,6 +39,9 @@ SAFETY
       a dot, which manage Azure instead of reading logs).
     - Every result is cut off at 500 rows, and every search is stopped
       after 30 seconds.
+    - Every log text is checked by Azure AI Content Safety Prompt Shields
+      (shields.py) before the AI sees it. Text that hides instructions for
+      the AI is replaced. If the check can't run, the text is hidden.
     - Our Azure identity only has the "Log Analytics Reader" role, so even
       if a check were missed, it could never change or delete a log.
 
@@ -92,6 +99,12 @@ from config.logging_config import get_logger
 # The ready-made KQL searches.
 from mcp_server import queries
 
+# Prompt Shields: checks every log text before the AI reads it.
+from mcp_server import shields
+
+# Searches the past postmortems in Azure AI Search.
+from mcp_server import postmortems
+
 # A logger named after this file.
 logger = get_logger(__name__)
 
@@ -113,6 +126,12 @@ SEARCH_WINDOW = timedelta(days=7)
 
 # The shape of a request ID: "req-" then exactly 6 characters from 0-9 and a-f.
 REQUEST_ID_SHAPE = re.compile(r"^req-[0-9a-f]{6}$")
+
+# The shortest and longest search the AI may send to search_postmortems, in characters.
+QUERY_MIN_CHARS, QUERY_MAX_CHARS = 3, 300
+
+# Postmortem sections are longer than log lines, so they are cut at this length instead.
+POSTMORTEM_MAX_CHARS = 1200
 
 # The time format the AI must use for inputs, for example "2026-10-29 02:00".
 TIME_FORMAT = "%Y-%m-%d %H:%M"
@@ -177,8 +196,10 @@ def run_kql(kql: str) -> list[dict]:
     # A search returns one table; take it.
     table = tables[0]
     # Turn every row into a dictionary {column name: value}, with dates in India time.
-    return [{column: to_local_text(value) for column, value in zip(table.columns, row)}
+    rows = [{column: to_local_text(value) for column, value in zip(table.columns, row)}
             for row in table.rows]
+    # Check every log text with Prompt Shields, and replace any that hides instructions for the AI.
+    return shields.protect(rows)
 
 
 # ---------------------------------------------------------------------------
@@ -257,11 +278,12 @@ def get_error_summary(
     """Start here for any 'what went wrong?' question.
 
     Returns the number of errors each service had in the last `hours` hours,
-    and every 10-minute window where one service had 5 or more errors
-    (a 'spike'). Pick `hours` so it covers the time the user asks about
-    (for example 48 for anything 'yesterday'). Use the spikes to pick a
-    service and time range for get_errors and what_changed.
-    Times are local time (IST).
+    and every 10-minute window where one service had far more errors than
+    its own usual (a 'spike'). Each spike shows Errors, the service's Typical
+    errors per window, and the Threshold it crossed. Pick `hours` so it covers
+    the time the user asks about (for example 48 for anything 'yesterday').
+    Use the spikes to pick a service and time range for get_errors,
+    find_root_service and what_changed. Times are local time (IST).
     """
     # Write a line in our own log, so we can see which tools the AI calls.
     logger.info("get_error_summary(hours=%s)", hours)
@@ -274,7 +296,8 @@ def get_error_summary(
         # How far back we looked.
         "looked_back_hours": hours,
         # How we decide what a spike is, in words.
-        "spike_rule": f"a {queries.BUCKET} window with {queries.SPIKE_MIN_ERRORS} or more errors",
+        "spike_rule": (f"a {queries.BUCKET} window with at least {queries.SPIKE_MULTIPLIER} times the "
+                       f"service's typical errors per window, and never fewer than {queries.SPIKE_MIN_ERRORS}"),
         # Search 1a: errors per app.
         "errors_per_service": run_kql(queries.errors_per_service(hours)),
         # Search 1b: the spikes, oldest first.
@@ -371,12 +394,160 @@ def what_changed(
     }
 
 
-# Tool 5: any other search, written by the AI. Powerful, so it has the most checks.
+# Tool 5: the slowest kinds of request, to find WHERE customers wait the longest.
+def get_slow_endpoints(
+    # The input: from when (local time).
+    start: Annotated[str, Field(description="Start time, local time, like '2026-10-28 00:00'")],
+    # The input: until when (local time).
+    end: Annotated[str, Field(description="End time, local time, like '2026-10-29 00:00'")],
+) -> dict:
+    """The 10 slowest endpoints (kinds of request) between two times.
+
+    For each endpoint: how many requests, the average time, the p95 time
+    (95 out of 100 requests were faster than this), and how many failed with
+    a 5xx error. Times are the TOTAL time of each request, in milliseconds.
+    Use it for 'which endpoint was slowest?' questions. Times are local time (IST).
+    """
+    # Write a line in our own log.
+    logger.info("get_slow_endpoints(start=%s, end=%s)", start, end)
+    # Change the times to UTC (and check them).
+    start_utc, end_utc = check_range(start, end)
+    # Run the ready-made search and return the result.
+    return {
+        # Echo the inputs back, so the AI's answer can quote them.
+        "from": start, "to": end, "time_zone": settings.DISPLAY_TIMEZONE,
+        # The endpoints, slowest p95 first.
+        "endpoints": run_kql(queries.slow_endpoints(start_utc, end_utc)),
+    }
+
+
+# Tool 6: before vs after one moment, to check whether a change made things better or worse.
+def compare_periods(
+    # The input: which app.
+    service: Annotated[str, Field(description=f"One of: {', '.join(KNOWN_SERVICES)}")],
+    # The input: the moment to compare around, for example a release or a rollback.
+    change_time: Annotated[str, Field(description="The moment to compare around, local time, like '2026-10-29 02:41'")],
+    # The input: how many minutes to look at on each side of the moment.
+    minutes: Annotated[int, Field(description="Minutes to compare on each side (5 to 360).", ge=5, le=360)] = 30,
+) -> dict:
+    """One service's error rate and p95 time, just before vs just after a moment.
+
+    Compares the `minutes` before `change_time` with the `minutes` after it.
+    Use it to check whether a release made things worse, or whether a
+    rollback fixed them (for example, change_time = the rollback time from
+    what_changed). Times are local time (IST).
+    """
+    # Write a line in our own log.
+    logger.info("compare_periods(service=%s, change_time=%s, minutes=%s)", service, change_time, minutes)
+    # Check the app name before using it.
+    service = check_service(service)
+    # Change the moment to UTC (and check it).
+    change_utc = local_text_to_utc(change_time)
+    # The length of each side, as a length of time.
+    window = timedelta(minutes=minutes)
+    # Run the ready-made search: from (moment - window) to (moment + window).
+    rows = run_kql(queries.before_and_after(service, change_utc - window, change_utc, change_utc + window))
+    # Put each side's row under its name, "before" or "after". A side with no lines stays empty.
+    sides = {row["Period"]: row for row in rows}
+    # Each side's numbers, or zeros if that side had no lines at all.
+    before, after = (sides.get(name, {"Lines": 0, "Errors": 0, "ErrorRatePct": 0.0, "P95Ms": None})
+                     for name in ("before", "after"))
+    # Return both sides, plus the change in error rate, ready to quote.
+    return {
+        # Echo the inputs back.
+        "service": service, "change_time": change_time, "minutes_each_side": minutes,
+        # Remind the AI which time zone the times are in.
+        "time_zone": settings.DISPLAY_TIMEZONE,
+        # The numbers before the moment.
+        "before": before,
+        # The numbers after the moment.
+        "after": after,
+        # How the error rate moved, in percentage points (negative = fewer errors after).
+        "error_rate_change_points": round(after["ErrorRatePct"] - before["ErrorRatePct"], 1),
+    }
+
+
+# Tool 7: which app failed first, so the app that only REPORTS failures is not blamed.
+def find_root_service(
+    # The input: from when (local time).
+    start: Annotated[str, Field(description="Start time, local time, like '2026-10-29 02:00'")],
+    # The input: until when (local time).
+    end: Annotated[str, Field(description="End time, local time, like '2026-10-29 03:00'")],
+) -> dict:
+    """For every request that failed between two times, the app that failed FIRST.
+
+    api-gateway reports every failure that happens further down, so its error
+    counts always look high. This tool finds where each failure STARTED, and
+    counts failed requests per starting app, with an example request ID and
+    message. Use it before blaming an app. Times are local time (IST).
+    """
+    # Write a line in our own log.
+    logger.info("find_root_service(start=%s, end=%s)", start, end)
+    # Change the times to UTC (and check them).
+    start_utc, end_utc = check_range(start, end)
+    # Run the ready-made search and return the result.
+    return {
+        # Echo the inputs back.
+        "from": start, "to": end, "time_zone": settings.DISPLAY_TIMEZONE,
+        # One row per app where failures started, the most failed requests first.
+        "root_services": run_kql(queries.root_services(start_utc, end_utc)),
+    }
+
+
+# Tool 8: past incident reports, to find whether this happened before and what fixed it.
+def search_postmortems(
+    # The input: what to look for, in plain words.
+    query: Annotated[str, Field(description="What to look for, in plain words, like 'payments database connection pool timeouts'")],
+    # The input: only postmortems that involve this app (optional).
+    service: Annotated[str | None, Field(description=f"Optional. Only postmortems involving one of: {', '.join(KNOWN_SERVICES)}")] = None,
+) -> dict:
+    """Search past incident reports (postmortems): 'has this happened before, and what fixed it?'
+
+    Returns up to 3 postmortems, best match first, each with its date, the
+    services involved, the root cause, what fixed it, and the lessons
+    learned. Use it AFTER the log tools have shown what broke, to describe
+    the problem in your own words, for example 'payments ran out of database
+    connections after a release'. Postmortems are older than the logs.
+    """
+    # Write a line in our own log.
+    logger.info("search_postmortems(query=%r, service=%s)", query, service)
+    # Remove spaces at both ends.
+    query = query.strip()
+    # The search must be a sensible length.
+    if not QUERY_MIN_CHARS <= len(query) <= QUERY_MAX_CHARS:
+        # Stop, and say what is allowed.
+        raise ToolError(f"The search must be {QUERY_MIN_CHARS} to {QUERY_MAX_CHARS} characters long.")
+    # If an app was given, it must be one of our 4 (it goes into the search filter).
+    if service:
+        # Check it (this stops with a message if it is unknown).
+        service = check_service(service)
+    # Try the search. If Azure AI Search refuses it, we jump to "except" below.
+    try:
+        # Search the index.
+        found = postmortems.search(query, service)
+    # Azure refused (wrong role, index missing, ...).
+    except HttpResponseError as error:
+        # Pass the reason back to the AI.
+        raise ToolError(f"Azure AI Search refused the search: {error.message}") from error
+    # Return what we found, checked by Prompt Shields like every other text.
+    return {
+        # Echo the inputs back.
+        "query": query, "service": service,
+        # How many postmortems matched.
+        "found": len(found),
+        # The postmortems, best match first.
+        "postmortems": shields.protect(found, max_chars=POSTMORTEM_MAX_CHARS),
+    }
+
+
+# Tool 9: any other search, written by the AI. Powerful, so it has the most checks.
 def run_log_query(
     # The input: the KQL search the AI wrote.
     kql: Annotated[str, Field(description="A read-only KQL query over AppLogs_CL or Deployments_CL")],
 ) -> dict:
-    """Run your own read-only KQL query, for questions the other tools don't cover.
+    """Run your own read-only KQL query, ONLY for questions no other tool covers.
+
+    Try get_slow_endpoints, compare_periods and find_root_service first.
 
     Tables:
       AppLogs_CL: TimeGenerated, Service, Level (INFO/WARN/ERROR), Message,
@@ -405,5 +576,6 @@ def run_log_query(
     }
 
 
-# All 5 tools in one list, so server.py can add them in a loop.
-ALL_TOOLS = [get_error_summary, get_errors, trace_request, what_changed, run_log_query]
+# All the tools in one list, so server.py can add them in a loop.
+ALL_TOOLS = [get_error_summary, get_errors, trace_request, what_changed,
+             get_slow_endpoints, compare_periods, find_root_service, search_postmortems, run_log_query]

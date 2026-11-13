@@ -4,7 +4,7 @@ tests/test_planted_incidents.py
 
 WHAT THIS FILE IS FOR
 ---------------------
-Checks that the log generator really hides the 3 incidents in the logs, so
+Checks that the log generator really hides the 4 incidents in the logs, so
 the demo questions have answers to find. It runs the generator into a
 temporary folder and reads the files back. No Azure is needed.
 
@@ -15,6 +15,7 @@ WHAT IT CHECKS
     2. SMS outage: many QuickSMS errors, all inside yesterday's 14:00-16:00
        window, and NO release during it (so the cause is outside the bank).
     3. Request req-8f3a21: 4 lines, and the first failure is in payments.
+    4. The poisoned line: exactly once, from loan-service, at its planted time.
 
 HOW TO RUN
 ----------
@@ -160,3 +161,21 @@ def test_traced_request_fails_in_payments(logs):
     first_failure = next(row for row in trace if row["Level"] == "ERROR")
     # It must be payments: that is where the request really broke.
     assert first_failure["Service"] == "payments"
+
+# ---------------------------------------------------------------------------
+# 4. The poisoned log line
+# ---------------------------------------------------------------------------
+
+# The poisoned line is in the logs exactly once, written by loan-service, as an ERROR, at its planted time.
+def test_poisoned_line_is_planted_once(logs):
+    # The generated lines and "today".
+    lines, _, today = logs
+    # The lines that carry the poisoned message.
+    found = [row for row in lines if row["Message"] == incidents.POISONED_LINE["message"]]
+    # Exactly one.
+    assert len(found) == 1
+    # Written by loan-service, as an ERROR, with its own request ID.
+    assert (found[0]["Service"], found[0]["Level"], found[0]["RequestId"]) == \
+        ("loan-service", "ERROR", incidents.POISONED_LINE["request_id"])
+    # At the planted time (compared in UTC).
+    assert time_of(found[0]) == generate.to_time(today, incidents.POISONED_LINE["starts"]).astimezone(time_of(found[0]).tzinfo)
