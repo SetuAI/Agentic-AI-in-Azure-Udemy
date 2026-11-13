@@ -1,3 +1,12 @@
-.DS_Store
-__pycache__/
+# Files git must never commit, in every project. Each project also has its own .gitignore.
+
+# Real secrets (Azure IDs, client secrets, API keys).
 .env
+# Python virtual environments.
+.venv/
+# Compiled Python files.
+__pycache__/
+# pytest cache.
+.pytest_cache/
+# macOS Finder settings files.
+.DS_Store
