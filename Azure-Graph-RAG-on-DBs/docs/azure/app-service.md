@@ -1,296 +1,461 @@
-# Azure App Service
+# Deploy Azure GraphRAG on Databases to Azure Web Apps
 
-## What it is used for
+Follow the steps in order. Run every command in a terminal, from the project folder.
 
-App Service runs the project's web server (`api/main.py`) on Azure, so the demo page and API are available at `https://<app-name>.azurewebsites.net` without your laptop being on.
+Before you start, make sure that:
 
-| Term                       | Meaning                                                                                               |
-| -------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **App Service plan** | The machine the app runs on, and its price (e.g. B1: 1 core, 1.75 GB memory). Billed while it exists. |
-| **Web app**          | Your application, running on the plan. Has its own address, settings and logs.                        |
-| **App settings**     | The web app's environment variables. They do the job `.env` does on your laptop.                    |
-| **Startup command**  | What App Service runs to start the app. Here: `bash startup.sh`.                                    |
+- Postgres, Azure OpenAI and Content Safety already exist.
+- The app works on your laptop (`uv run uvicorn api.main:app` answers questions).
+- Your `.env` file is filled in.
 
-**Two ways to set it up.** Part A below does everything with one script (recommended). Part B does the same in the portal, step by step, so you understand each piece. Deploying the code (Part C) always uses a script.
-
-Set up Postgres, Azure OpenAI and Content Safety first, and check the app works on your laptop.
+Mac and Linux: use the normal Terminal. Windows: use **Git Bash**, not PowerShell.
 
 ---
 
-## Part A — Set up with the script (recommended)
+## Part 1: Set your names
 
-1. Install the Azure CLI and sign in:
+### Step 1: Save your names in the terminal
 
-   ```bash
-   brew install azure-cli
-   az login
-   ```
+```bash
+RG=fundgraph-rg-1
+APP=fundgraph-app
+PLAN=fundgraph-app-plan
+PG=fundgraphdbexample1
+LOC=centralindia
+```
 
-   A browser window opens; sign in with your Azure account. If you have several subscriptions, choose the right one:
+What each line means:
 
-   ```bash
-   az account set --subscription "<subscription name or id>"
-   ```
-2. From the project folder:
+- `RG=fundgraph-rg-1` saves the name of your resource group. A resource group is the folder in Azure that holds all the services of this project.
+- `APP=fundgraph-app` saves the name of your web app. It becomes part of the web address, so it must be unique in all of Azure.
+- `PLAN=fundgraph-app-plan` saves the name of the App Service plan. The plan is the machine your app runs on.
+- `PG=fundgraphdbexample1` saves the name of your Postgres server, without `.postgres.database.azure.com`.
+- `LOC=centralindia` saves the region. Use the **same region as your Postgres server**, because the app calls the database several times per question.
 
-   ```bash
-   RESOURCE_GROUP=rg-fundgraph APP_NAME=fundgraph-demo PG_SERVER=fundgraph-pg \
-       bash infra/azure/create-app-service.sh
-   ```
-
-   | Variable                         | Meaning                                                                   |
-   | -------------------------------- | ------------------------------------------------------------------------- |
-   | `RESOURCE_GROUP`               | The resource group to use                                                 |
-   | `APP_NAME`                     | Unique across Azure; becomes `https://fundgraph-demo.azurewebsites.net` |
-   | `PG_SERVER`                    | Your Postgres server name, without `.postgres.database.azure.com`       |
-   | `LOCATION` (optional)          | Defaults to `eastus`                                                    |
-   | `PG_RESOURCE_GROUP` (optional) | If Postgres is in a different resource group                              |
-3. The script creates the plan and web app, copies `.env` into app settings, opens the Postgres firewall for the app, and switches on Entra ID sign-in (see entra-id.md). Go to Part C.
+These names are only remembered in **this** terminal window. If you open a new window, run Step 1 again.
 
 ---
 
-## Part B — Set up in the portal
+## Part 2: Sign in
 
-### B1. Create the web app
+### Step 2: Sign in to Azure
 
-1. Go to https://portal.azure.com, search **App Services**, click **+ Create → Web App**.
+```bash
+az login --use-device-code
+```
 
-#### Basics tab
+- `az` is the Azure command-line tool.
+- `login` opens a browser window. Sign in with your Azure account there.
 
-| Field            | What to enter                                                              | Why                                                                                                                                                                                                                                                  |
-| ---------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Subscription     | Your subscription                                                          |                                                                                                                                                                                                                                                      |
-| Resource group   | `rg-fundgraph`                                                           |                                                                                                                                                                                                                                                      |
-| Name             | e.g. `fundgraph-demo`                                                    | Unique; becomes the web address. If **Secure unique default hostname** is on, Azure adds a random part (e.g. `fundgraph-app-<random>.centralindia-01.azurewebsites.net`). Untick it to keep the simple `<name>.azurewebsites.net` address. |
-| Publish          | **Code**                                                             | We upload Python code, not a container                                                                                                                                                                                                               |
-| Runtime stack    | **Python 3.13**                                                      | Match the Python on your laptop (`python --version` in the project's `.venv`). The project needs 3.12 or later.                                                                                                                                  |
-| Operating System | **Linux**                                                            | Python apps run on Linux                                                                                                                                                                                                                             |
-| Region           | The **same region as your Postgres server** (e.g. `Central India`) | The agent calls the database several times per question, so keeping them close makes answers faster. If the plan is not available there, pick the nearest region.                                                                                    |
-| Linux Plan       | **Create new**, name `fundgraph-demo-plan`                         |                                                                                                                                                                                                                                                      |
-| Pricing plan     | **Basic B1** (click **Explore pricing plans** to find it)      | Smallest plan with **Always On**. Free F1 sleeps after 20 minutes and has too little memory.                                                                                                                                                   |
+### Step 3: Check which subscription is active
 
-#### Database tab
+```bash
+az account show --query name -o tsv
+```
 
-Leave **Create a database** unticked (Postgres already exists).
+- `account show` shows the subscription you are using now.
+- `--query name` picks only its name.
+- `-o tsv` prints it as plain text.
 
-#### Deployment tab
+If it's the wrong one, run Step 4. If it's the right one, skip to Step 5.
 
-Leave **Continuous deployment** disabled. Leave **Basic authentication** as it is.
+### Step 4: Pick the right subscription
 
-#### Networking tab
+```bash
+az account set --subscription "<your subscription name>"
+```
 
-**Enable public access**: **On**.
+- `account set` changes the active subscription.
+- `--subscription "..."` is the name you want. Keep the quotes.
 
-#### Monitoring tab
+---
 
-**Enable Application Insights**: **No**. The app sends its own data using the connection string (see application-insights.md); switching it on here as well can record each request twice.
+## Part 3: Create the web app
 
-Click **Review + create** → **Create**. Then **Go to resource**.
+### Step 5: Create the resource group
 
-### B2. App settings (the `.env` values)
+```bash
+az group create --name $RG --location $LOC
+```
 
-1. On the web app, open **Settings → Environment variables**.
-2. On the **App settings** tab, click **+ Add** for each line of your `.env` that has a value:
+- `group create` creates a resource group.
+- `--name $RG` uses the name from Step 1.
+- `--location $LOC` puts it in your region.
 
-| Name                                      | Value                                                                            |
-| ----------------------------------------- | -------------------------------------------------------------------------------- |
-| `DATA_DB_URL`                           | same as `.env`                                                                 |
-| `AGENT_DB_URL`                          | same as `.env`                                                                 |
-| `AZURE_OPENAI_ENDPOINT`                 | same as `.env`                                                                 |
-| `AZURE_OPENAI_API_KEY`                  | same as `.env`                                                                 |
-| `CHAT_DEPLOYMENT`                       | same as `.env`                                                                 |
-| `EMBED_DEPLOYMENT`                      | same as `.env`                                                                 |
-| `CONTENT_SAFETY_ENDPOINT`               | same as `.env`                                                                 |
-| `CONTENT_SAFETY_KEY`                    | same as `.env`                                                                 |
-| `APPLICATIONINSIGHTS_CONNECTION_STRING` | same as `.env`                                                                 |
-| `SCM_DO_BUILD_DURING_DEPLOYMENT`        | `true` — makes App Service install `requirements.txt` when code is uploaded |
+If it already exists, nothing changes. That's fine.
 
-3. Click **Apply** at the bottom, then **Confirm**. The app restarts.
+### Step 6: Create the App Service plan
 
-Anyone with access to this web app in the portal can read these values. Give portal access only to people who may see the keys.
+```bash
+az appservice plan create --name $PLAN --resource-group $RG --location $LOC --is-linux --sku B1
+```
 
-### B3. Startup command, Always On, HTTPS
+- `appservice plan create` creates the machine your app runs on.
+- `--name $PLAN` gives it the name from Step 1.
+- `--resource-group $RG` puts it in your resource group.
+- `--location $LOC` puts it in your region.
+- `--is-linux` makes it a Linux machine. Python apps run on Linux.
+- `--sku B1` picks the Basic B1 size: 1 core and 1.75 GB of memory. It's the smallest size with **Always On**. The Free size sleeps after 20 minutes and has too little memory.
 
-1. Open **Settings → Configuration → General settings**.
-2. **Startup Command**: `bash startup.sh`
-3. **Always on**: **On** (keeps the app loaded, so the first question is not slow)
-4. **HTTPS Only**: **On** (if shown here; otherwise under **Settings → Configuration** or **Settings → TLS/SSL**)
-5. Click **Save** → **Continue**.
+### Step 7: Check that Python 3.13 is available
 
-### B4. Health check
+```bash
+az webapp list-runtimes --os linux --query "[].config" | grep -i python
+```
 
-1. Open **Monitoring → Health check**.
-2. **Enable**, path `/health`, click **Save**.
+- `webapp list-runtimes` lists the languages App Service can run.
+- `--os linux` shows the Linux ones only.
+- `--query "[].config"` shows only the runtime names.
+- `| grep -i python` keeps only the lines with "python".
 
-App Service calls `/health` regularly and restarts the app if it stops answering.
+You should see `PYTHON|3.13` in the list.
 
-### B5. Let the app reach Postgres
+### Step 8: Create the web app
 
-The web app connects to Postgres from a set of Azure addresses (often 20 to 30 of them). Each must be allowed in Postgres's firewall.
+```bash
+az webapp create --name $APP --resource-group $RG --plan $PLAN --runtime "PYTHON:3.13"
+```
 
-1. On the web app, open **Settings → Properties**. Copy every address under **Outbound IP addresses** and **Additional outbound IP addresses**.
-2. Open your Postgres server → **Settings → Networking**.
-3. For each address, click **+ Add a firewall rule**: name `app-1`, `app-2`, ...; start and end IP both set to the address.
-4. Click **Save**.
+- `webapp create` creates your web app.
+- `--name $APP` gives it the name from Step 1.
+- `--resource-group $RG` puts it in your resource group.
+- `--plan $PLAN` runs it on the plan from Step 6.
+- `--runtime "PYTHON:3.13"` runs Python 3.13. It must match the Python on your laptop. The project needs 3.12 or later.
 
-**With many addresses, the terminal is quicker.** This adds one rule per address (after `az login`; run it in `bash`, not `zsh`, so the list splits into separate addresses). Postgres applies firewall changes one at a time, so 30 rules take about 10 minutes:
+---
+
+## Part 4: Settings
+
+### Step 9: Load your `.env` values into the terminal
+
+```bash
+set -a; source .env; set +a
+```
+
+- `set -a` means: every value read from now on can be used by the next commands.
+- `source .env` reads every line of your `.env` file.
+- `set +a` switches the first part off again.
+
+Now `$DATA_DB_URL`, `$AZURE_OPENAI_ENDPOINT` and the others hold your real values. Nothing is printed on screen.
+
+### Step 10: Copy the settings into the web app
+
+```bash
+az webapp config appsettings set --name $APP --resource-group $RG --output none --settings \
+  DATA_DB_URL="$DATA_DB_URL" \
+  AGENT_DB_URL="$AGENT_DB_URL" \
+  AZURE_OPENAI_ENDPOINT="$AZURE_OPENAI_ENDPOINT" \
+  AZURE_OPENAI_API_KEY="$AZURE_OPENAI_API_KEY" \
+  CHAT_DEPLOYMENT="$CHAT_DEPLOYMENT" \
+  EMBED_DEPLOYMENT="$EMBED_DEPLOYMENT" \
+  CONTENT_SAFETY_ENDPOINT="$CONTENT_SAFETY_ENDPOINT" \
+  CONTENT_SAFETY_KEY="$CONTENT_SAFETY_KEY" \
+  APPLICATIONINSIGHTS_CONNECTION_STRING="$APPLICATIONINSIGHTS_CONNECTION_STRING" \
+  SCM_DO_BUILD_DURING_DEPLOYMENT=true
+```
+
+- `webapp config appsettings set` saves settings in the web app. On Azure, these do the job that `.env` does on your laptop.
+- `--output none` stops Azure from printing the settings back. This keeps your keys off the screen.
+- `--settings` is followed by one `NAME="value"` pair per line.
+- `DATA_DB_URL` is the address of the `mf_data` database (the business data).
+- `AGENT_DB_URL` is the address of the `agent_meta` database (the agent's notes, links, vectors and graph).
+- `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY` connect to Azure OpenAI.
+- `CHAT_DEPLOYMENT` is your gpt-5.1 deployment name. `EMBED_DEPLOYMENT` is your embedding deployment name.
+- `CONTENT_SAFETY_ENDPOINT` and `CONTENT_SAFETY_KEY` connect to Content Safety.
+- `APPLICATIONINSIGHTS_CONNECTION_STRING` sends the app's traces to Application Insights.
+- `SCM_DO_BUILD_DURING_DEPLOYMENT=true` tells App Service to install `requirements.txt` when you upload the code.
+- Each `\` at the end of a line means "the command continues on the next line".
+
+Anyone with access to this web app in the portal can read these values, so give portal access only to people who may see the keys.
+
+### Step 11: Check the settings were saved
+
+```bash
+az webapp config appsettings list --name $APP --resource-group $RG --query "[].name" -o tsv
+```
+
+- `appsettings list` lists the saved settings.
+- `--query "[].name"` shows **only the names**, not the values, so no key appears on screen.
+
+You should see all 10 names from Step 10.
+
+### Step 12: Set the startup command, Always On and the health check
+
+```bash
+az webapp config set --name $APP --resource-group $RG --startup-file "bash startup.sh" --always-on true --generic-configurations '{"healthCheckPath": "/health"}'
+```
+
+- `webapp config set` changes how the web app runs.
+- `--startup-file "bash startup.sh"` is the command App Service runs to start the app. `startup.sh` starts the web server with exactly 1 worker.
+- `--always-on true` keeps the app loaded, so the first question isn't slow.
+- `--generic-configurations '{"healthCheckPath": "/health"}'` makes App Service call `/health` regularly, and restart the app if it stops answering.
+
+### Step 13: Turn on HTTPS only
+
+```bash
+az webapp update --name $APP --resource-group $RG --https-only true
+```
+
+- `webapp update` changes the web app.
+- `--https-only true` sends every `http://` visitor to the safe `https://` address.
+
+---
+
+## Part 5: Let the app reach Postgres
+
+The web app calls Postgres from a set of Azure addresses, often 20 to 30 of them. Postgres blocks every address it doesn't know, so we allow each one.
+
+### Step 14: Add one firewall rule per address
 
 ```bash
 bash -c '
-IPS=$(az webapp show -g fundgraph-rg-1 -n fundgraph-app --query possibleOutboundIpAddresses -o tsv | tr "," " ")
+IPS=$(az webapp show -g '"$RG"' -n '"$APP"' --query possibleOutboundIpAddresses -o tsv | tr "," " ")
 i=0
 for ip in $IPS; do
   i=$((i+1))
-  az postgres flexible-server firewall-rule create -g fundgraph-rg-1 --server-name fundgraphdbexample1 \
-      --name "app-$i" --start-ip-address $ip --end-ip-address $ip -o none
+  az postgres flexible-server firewall-rule create -g '"$RG"' --name '"$PG"' --rule-name "app-$i" --start-ip-address $ip --end-ip-address $ip -o none
 done
 echo "added $i rules"'
 ```
 
-Replace `fundgraph-rg-1`, `fundgraph-app` and `fundgraphdbexample1` with your resource group, web app and Postgres server names.
+- `bash -c '...'` runs the block in bash. This matters on a Mac, where the default terminal is zsh and would not split the address list correctly.
+- `az webapp show ... --query possibleOutboundIpAddresses` gets every address the web app may call out from.
+- `tr "," " "` turns the commas between the addresses into spaces, so the loop can go through them one by one.
+- `for ip in $IPS; do ... done` repeats the next command once for each address.
+- `firewall-rule create` adds one rule to Postgres.
+- `--rule-name "app-$i"` names the rules `app-1`, `app-2`, and so on.
+- `--start-ip-address $ip --end-ip-address $ip` allows exactly that one address.
+- `echo "added $i rules"` prints how many rules were added.
 
-The box **"Allow public access from any Azure service within Azure to this server"** on the Networking page also works and is one click, but it lets in every Azure customer's services, not only yours. The per-address rules are safer.
+Postgres adds rules one at a time, so 30 rules take about 10 minutes. Wait until you see `added 31 rules` (or your number).
 
-### B6. Sign-in
-
-Follow entra-id.md.
+The Postgres Networking page also has a box called *"Allow public access from any Azure service within Azure to this server"*. It's one click, but it lets in every Azure customer's services, not only yours. The per-address rules are safer.
 
 ---
 
-## Part C — Deploy the code
+## Part 6: Sign-in with Entra ID
 
-Deploying means sending the project's code to the web app. One script does it: **`infra/azure/deploy-app.sh`**. Run it after setup (Part A or Part B), and again every time you change the code.
+These steps put a Microsoft sign-in page in front of your app. Only people in your own organisation can open it. `/health` stays open, so App Service can still check the app.
 
-### C1. Before the first deploy, check
-
-- [ ] The web app exists, and its **Environment variables** match your `.env` (B2), including `SCM_DO_BUILD_DURING_DEPLOYMENT` = `true`
-- [ ] **Startup Command** is `bash startup.sh`, and **Always on** is On (B3)
-- [ ] **Health check** path is `/health` (B4)
-- [ ] Postgres allows the app's outbound addresses (B5)
-- [ ] You are signed in to the Azure CLI: `az login` (and `az account set --subscription "<name>"` if you have several)
-
-### C2. Run the deploy
-
-From the project folder on your laptop:
+### Step 15: Save your tenant ID and the sign-in return address
 
 ```bash
-cd /path/to/azure-fundgraph-rag-on-db
-RESOURCE_GROUP=fundgraph-rg-1 APP_NAME=fundgraph-app bash infra/azure/deploy-app.sh
+TENANT=$(az account show --query tenantId -o tsv)
+HOST=$(az webapp show --name $APP --resource-group $RG --query defaultHostName -o tsv)
+CALLBACK="https://$HOST/.auth/login/aad/callback"
 ```
 
-| Part of the command                | Meaning                                                                       |
-| ---------------------------------- | ----------------------------------------------------------------------------- |
-| `RESOURCE_GROUP=fundgraph-rg-1`  | The resource group the web app is in                                          |
-| `APP_NAME=fundgraph-app`         | The web app's name (as shown in **App Services**, not the full address) |
-| `bash infra/azure/deploy-app.sh` | Runs the deploy script                                                        |
+- `TENANT=...` saves your Entra ID tenant ID. A tenant is your organisation's account in Entra ID.
+- `HOST=...` saves your web app's address, for example `fundgraph-app-<random>.centralindia-01.azurewebsites.net`.
+- `CALLBACK=...` is the address Entra ID sends people back to after they sign in.
 
-Use your own resource group and app name.
-
-### C3. What the script does
-
-1. **Writes `requirements.txt` from `uv.lock`**, so Azure installs exactly the same package versions as your laptop.
-2. **Zips the project**, leaving out `.env`, `.venv`, caches, `tests/`, `evals/`, `infra/` and the `.md` files. Your secrets never leave your laptop this way; on Azure they come from the web app's environment variables.
-3. **Uploads the zip** (`az webapp deploy --type zip`). Because `SCM_DO_BUILD_DURING_DEPLOYMENT` is `true`, App Service installs the packages from `requirements.txt`. This takes 3 to 5 minutes the first time, and less afterwards, because packages are cached.
-4. **Starts the app** with `startup.sh`, which runs:
-   ```bash
-   python -m uvicorn api.main:app --host 0.0.0.0 --port "${PORT:-8000}" --workers 1
-   ```
-
-   App Service sets `PORT`. One worker, because conversation history is held in memory (see "Important limits").
-5. **Waits up to 5 minutes for `/health`** to answer, then prints the address.
-
-### C4. If the deploy says `504 GatewayTimeout`
-
-On the first deploy, the upload request can time out while Azure is still installing packages. The script then stops with:
-
-```
-ERROR: Deployment failed. ... Error Code : HTTP_504 ... Raw Error : 504.0 GatewayTimeout
-```
-
-**This usually does not mean the deploy failed.** The install carries on in Azure. Check the real result:
+### Step 16: Create the app registration
 
 ```bash
-az webapp log deployment list -g fundgraph-rg-1 -n fundgraph-app \
-    --query "[0].{status:status, complete:complete, active:active, end:end_time}" -o table
+CLIENT_ID=$(az ad app create --display-name $APP --sign-in-audience AzureADMyOrg --web-redirect-uris $CALLBACK --enable-id-token-issuance true --query appId -o tsv)
 ```
 
-| `status`                        | Meaning                                                                   |
-| --------------------------------- | ------------------------------------------------------------------------- |
-| `4`, with `active` = `True` | Succeeded, and this version is live                                       |
-| `3`                             | Failed: open **Deployment → Deployment Center → Logs** to see why |
-| `0`, `1` or `2`             | Still running: wait a minute and check again                              |
+- `ad app create` creates an **app registration**: your web app's identity in Entra ID.
+- `--display-name $APP` names it after your web app.
+- `--sign-in-audience AzureADMyOrg` allows only accounts from your own organisation.
+- `--web-redirect-uris $CALLBACK` is the return address from Step 15.
+- `--enable-id-token-issuance true` lets Entra ID send back proof of who signed in.
+- `--query appId -o tsv` saves only its ID into `CLIENT_ID`.
 
-The same information is in the portal: web app → **Deployment → Deployment Center → Logs**.
-
-### C5. Check the live site
-
-1. Find the address: web app → **Overview** → **Default domain**, or run:
-   ```bash
-   az webapp show -g fundgraph-rg-1 -n fundgraph-app --query defaultHostName -o tsv
-   ```
-2. Health (no sign-in needed):
-   ```bash
-   curl https://<default-domain>/health
-   ```
-
-   Expected: `{"status":"ok"}`.
-3. Open `https://<default-domain>` in a browser. With sign-in on (entra-id.md), you are sent to the Microsoft sign-in page first. Sign in with your work account.
-4. You should see:
-   - a **Sign out** link at the top right,
-   - **Records per table** showing the row total (proof the app reached Postgres), and
-   - an answer when you ask a question (proof it reached Azure OpenAI and Content Safety).
-
-### C6. Updating the app later
-
-After any code change, run the same command again:
+### Step 17: Create its service principal
 
 ```bash
-RESOURCE_GROUP=fundgraph-rg-1 APP_NAME=fundgraph-app bash infra/azure/deploy-app.sh
+az ad sp create --id $CLIENT_ID
 ```
 
-Settings in the portal (environment variables, startup command, sign-in, firewall) stay as they are; only the code is replaced. The app restarts, so conversation history is cleared.
+- `ad sp create` creates the app registration's working identity inside your organisation. Sign-in doesn't work without it.
 
-### Example: the deployment done for this project
+### Step 18: Create a secret and save it in the web app
 
-| Item            | Value                                                                                                                   |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Resource group  | `fundgraph-rg-1`                                                                                                      |
-| Web app         | `fundgraph-app`, Python 3.13, Linux, plan B1, Central India                                                           |
-| Address         | `https://fundgraph-app-<random>.centralindia-01.azurewebsites.net` (shown under **Overview → Default domain**) |
-| Postgres        | `fundgraphdbexample1` (Central India); 31 firewall rules `app-1` to `app-31` for the app's outbound addresses     |
-| Startup command | `bash startup.sh`; Always On on; health check `/health`                                                             |
-| Sign-in         | Microsoft (Entra ID), current tenant only, `/health` excluded                                                         |
-| Deploy command  | `RESOURCE_GROUP=fundgraph-rg-1 APP_NAME=fundgraph-app bash infra/azure/deploy-app.sh`                                 |
-| Result          | Upload returned 504, but the deployment succeeded (status 4, active) in about 4 minutes                                 |
+Run this **once**. Each run creates a new secret.
+
+```bash
+SECRET=$(az ad app credential reset --id $CLIENT_ID --display-name app-service-sign-in --years 1 --append --query password -o tsv)
+az webapp config appsettings set --name $APP --resource-group $RG --output none --settings MICROSOFT_PROVIDER_AUTHENTICATION_SECRET="$SECRET"
+```
+
+- `ad app credential reset` creates a secret (a password) for the app registration.
+- `--years 1` makes it valid for 1 year.
+- `--append` keeps any older secret working.
+- `--query password -o tsv` saves only the secret into `SECRET`. It is never printed.
+- The second line stores the secret as a web app setting called `MICROSOFT_PROVIDER_AUTHENTICATION_SECRET`.
+
+### Step 19: Check the secret is not empty
+
+```bash
+echo -n "$SECRET" | wc -c
+```
+
+- `echo -n "$SECRET"` passes the secret along without printing it.
+- `wc -c` counts its characters.
+
+You should see a number around **40**. If you see **0**, the secret is empty: run Step 18 again.
+
+### Step 20: Upgrade the sign-in settings to the current version
+
+```bash
+az webapp auth config-version upgrade --name $APP --resource-group $RG
+```
+
+- `auth config-version upgrade` moves the web app's sign-in settings to version 2. The next step only works with version 2. If it says it is already upgraded, that's fine.
+
+### Step 21: Connect sign-in to the app registration
+
+```bash
+az webapp auth microsoft update --name $APP --resource-group $RG --client-id $CLIENT_ID --client-secret-setting-name MICROSOFT_PROVIDER_AUTHENTICATION_SECRET --issuer "https://login.microsoftonline.com/$TENANT/v2.0" --yes
+```
+
+- `auth microsoft update` sets up Microsoft sign-in for the web app.
+- `--client-id $CLIENT_ID` uses the app registration from Step 16.
+- `--client-secret-setting-name ...` tells it which setting holds the secret from Step 18.
+- `--issuer "https://login.microsoftonline.com/$TENANT/v2.0"` accepts sign-ins from your organisation only.
+- `--yes` answers "yes" to the confirmation question.
+
+### Step 22: Switch sign-in on
+
+```bash
+az webapp auth update --name $APP --resource-group $RG --enabled true --action RedirectToLoginPage --redirect-provider azureactivedirectory --require-https true --excluded-paths '["/health"]'
+```
+
+- `auth update --enabled true` switches sign-in on.
+- `--action RedirectToLoginPage` sends anyone not signed in to the Microsoft sign-in page.
+- `--redirect-provider azureactivedirectory` uses Microsoft (Entra ID) for that page.
+- `--require-https true` allows sign-in over https only.
+- `--excluded-paths '["/health"]'` keeps `/health` open, so App Service can still check the app.
+
+---
+
+## Part 7: Deploy the code
+
+### Step 23: Run the deploy script
+
+```bash
+RESOURCE_GROUP=$RG APP_NAME=$APP bash infra/azure/deploy-app.sh
+```
+
+- `RESOURCE_GROUP=$RG` tells the script your resource group.
+- `APP_NAME=$APP` tells it your web app's name.
+- `bash infra/azure/deploy-app.sh` runs the script. It does 4 things:
+  1. writes `requirements.txt` from `uv.lock`, so Azure installs exactly the same package versions as your laptop,
+  2. zips the project, leaving out `.env`, `.venv`, `tests/`, `evals/`, `infra/` and the `.md` files (your secrets never leave your laptop),
+  3. uploads the zip, after which App Service installs the packages (3 to 5 minutes the first time),
+  4. waits up to 5 minutes for `/health` to answer, then prints the address.
+
+**If it stops with `504 GatewayTimeout`:** this usually doesn't mean the deploy failed. The upload request timed out while Azure was still installing packages. Go to Step 24.
+
+### Step 24: Check the real deploy result
+
+```bash
+az webapp log deployment list --name $APP --resource-group $RG --query "[0].{status:status, active:active, end:end_time}" -o table
+```
+
+- `log deployment list` lists your deploys.
+- `[0]` picks the latest one.
+- `{status, active, end}` shows its status, whether it's live, and when it finished.
+
+What the status means:
+
+| `status`                        | Meaning                                                                                  |
+| --------------------------------- | ---------------------------------------------------------------------------------------- |
+| `4`, with `active` = `True` | It worked, and this version is live                                                      |
+| `0`, `1` or `2`             | Still running. Wait a minute and run Step 24 again                                       |
+| `3`                             | It failed. Open the portal: web app → **Deployment → Deployment Center → Logs** |
+
+---
+
+## Part 8: Check the live site
+
+### Step 25: Check the health address
+
+```bash
+curl https://$HOST/health
+```
+
+- `curl` calls an address and prints the answer.
+- `/health` needs no sign-in.
+
+You should see: `{"status":"ok"}`.
+
+### Step 26: Open the site in a browser
+
+```bash
+echo https://$HOST
+```
+
+- This prints your site's address. Open it in a browser.
+
+You should see, in order:
+
+1. the Microsoft sign-in page; sign in with your work account,
+2. a **Sign out** link at the top right,
+3. **Records per table** showing the row total (proof the app reached Postgres),
+4. an answer when you ask a question (proof it reached Azure OpenAI and Content Safety).
+
+---
+
+## Updating the app later
+
+After any code change, run Step 1 (if it's a new terminal window), then Step 23 again:
+
+```bash
+RESOURCE_GROUP=$RG APP_NAME=$APP bash infra/azure/deploy-app.sh
+```
+
+Only the code is replaced. Settings, startup command, sign-in and firewall rules stay as they are. The app restarts, so conversation history is cleared.
 
 ---
 
 ## Viewing logs
 
-| What                                    | Where                                                                                                                                                          |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Live output of the app (prints, errors) | Portal → web app → **Monitoring → Log stream**. First switch on **Monitoring → App Service logs → Application logging: File System → Save**. |
-| Same, from the terminal                 | `az webapp log tail -n fundgraph-demo -g rg-fundgraph`                                                                                                       |
-| Deployment and package install log      | **Deployment → Deployment Center → Logs**                                                                                                              |
-| Automatic diagnosis of common problems  | **Diagnose and solve problems**                                                                                                                          |
+### Step 27: Switch on app logging (once)
+
+```bash
+az webapp log config --name $APP --resource-group $RG --application-logging filesystem
+```
+
+- `log config` sets up logging.
+- `--application-logging filesystem` saves the app's printed output, so you can read it.
+
+### Step 28: Watch the live output
+
+```bash
+az webapp log tail --name $APP --resource-group $RG
+```
+
+- `log tail` shows the app's output as it happens. Press `Ctrl + C` to stop.
 
 ---
 
-## Important limits for this project
+## Important limits
 
-- **Keep it at 1 instance** (**Settings → Scale out** stays at 1) and 1 worker (`startup.sh`). Conversation history is held in the app's memory; a second instance would not see it, and follow-up questions would lose their context. This lasts until Stage 8 moves history into Postgres.
-- **History is lost on restart.** Every deploy or settings change restarts the app.
-- **Cost**: the B1 plan is billed every hour it exists, even if the app is stopped. To stop the charge, delete the plan: **App Service plans → fundgraph-demo-plan → Delete**.
+- **Keep 1 instance and 1 worker.** Conversation history is kept in the app's memory. A second instance would not see it, and follow-up questions would lose their context. Don't change **Settings → Scale out** from 1.
+- **History is lost on every restart.** Every deploy or settings change restarts the app.
+- **Cost:** the B1 plan is billed every hour it exists, even when the app is stopped. To stop the charge, delete the plan:
+
+```bash
+az appservice plan delete --name $PLAN --resource-group $RG --yes
+```
+
+- `appservice plan delete` deletes the plan, and the web app on it stops working.
+- `--yes` skips the confirmation question.
 
 ---
 
-## Troubleshooting
+## If something goes wrong
 
-| Symptom                                                               | Cause                                        | Fix                                                                                                                                                                                |
-| --------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Application Error` page, or `/health` never answers after deploy | App failed to start                          | Check **Log stream**. Common causes: an app setting missing (e.g. `KeyError: 'DATA_DB_URL'`), or packages not installed (`SCM_DO_BUILD_DURING_DEPLOYMENT` not `true`). |
-| `ModuleNotFoundError`                                               | Packages not installed                       | Set `SCM_DO_BUILD_DURING_DEPLOYMENT=true`, redeploy                                                                                                                              |
-| Questions fail with `connection timeout`                            | Postgres firewall does not allow the app     | Part B5 (or re-run the setup script)                                                                                                                                               |
-| Page loads but every question returns `401`                         | Sign-in switched off or misconfigured        | entra-id.md                                                                                                                                                                        |
-| Follow-up questions do not use the previous question                  | More than one instance, or the app restarted | Keep 1 instance; see "Important limits"                                                                                                                                            |
-| First question after a while is slow                                  | Always On is off                             | Part B3                                                                                                                                                                            |
+| What you see                                             | Cause                                      | Fix                                                                    |
+| -------------------------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------- |
+| `Application Error` page, or `/health` never answers | The app didn't start                       | Step 28. Look for a missing setting (e.g. `KeyError: 'DATA_DB_URL'`) |
+| `ModuleNotFoundError`                                  | Packages weren't installed                 | Check `SCM_DO_BUILD_DURING_DEPLOYMENT` in Step 11, then Step 23      |
+| Questions fail with `connection timeout`               | Postgres blocks the app                    | Step 14                                                                |
+| `auth microsoft update` fails with an "auth v1" error  | Sign-in settings are on the old version    | Step 20, then Step 21                                                  |
+| Sign-in fails after the Microsoft page                   | The secret is empty                        | Step 19. If it shows 0, run Step 18 again                              |
+| Every question returns `401`                           | Sign-in is off or set up wrongly           | Steps 20 to 22                                                         |
+| Follow-up questions forget the previous one              | More than 1 instance, or the app restarted | See "Important limits"                                                 |
+| The first question after a while is slow                 | Always On is off                           | Step 12                                                                |
+| A command says the name isn't set, or uses a blank name  | New terminal window                        | Run Step 1 again (and Step 9 before Step 10)                           |
