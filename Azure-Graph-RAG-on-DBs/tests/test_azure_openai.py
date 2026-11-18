@@ -215,6 +215,8 @@ def test_embedding_has_1536_dimensions():
 
         # The text to turn into numbers.
         input="Sahyadri Credit Risk Fund",
+        # Ask for the size the database expects (works for -small and -large).
+        dimensions=1536,
     )
 
     # The numbers are several levels inside the result:

@@ -147,6 +147,13 @@ def embed(texts: list[str]) -> list[list[float]]:
     one request per text.
     """
     # One request for all the texts, using the embedding deployment from models.yaml.
-    result = _client().embeddings.create(model=_settings()["embedding"], input=texts)
+    # dimensions: text-embedding-3 models can shorten their output. We ask for
+    # the size the database column expects (vector(1536) in metadata/store.py),
+    # so text-embedding-3-large (3,072 by default) fits too.
+    result = _client().embeddings.create(
+        model=_settings()["embedding"],
+        input=texts,
+        dimensions=_settings().get("embedding_dimensions", 1536),
+    )
     # Azure returns them in the same order as sent; sort by index to be sure.
     return [item.embedding for item in sorted(result.data, key=lambda d: d.index)]

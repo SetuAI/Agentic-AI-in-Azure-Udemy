@@ -91,7 +91,7 @@ Only if it said **Stopped**. Starts the server again; this takes a few minutes. 
 ### Step 4 · Check Python 3.13 is available, and the name is free
 
 ```bash
-az webapp list-runtimes --os-type linux --query "[?contains(@, 'PYTHON')]" -o tsv
+az webapp list-runtimes --os-type linux --query "[?runtime=='Python'].config" -o tsv
 ```
 
 Lists the Python versions App Service supports on Linux. You should see `PYTHON:3.13`. The project needs 3.12 or later.

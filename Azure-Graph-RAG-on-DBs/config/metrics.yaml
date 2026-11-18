@@ -44,9 +44,14 @@ metrics:
   net_flows:
     description: Money into a scheme minus money out, from completed transactions.
     definition: >
-      SUM(CASE WHEN txn_type IN ('Redemption', 'Switch Out') THEN -amount ELSE amount END)
-      over transactions WHERE txn_status = 'Completed'. Money in = Purchase, SIP, Switch In.
-      Money out = Redemption, Switch Out. Join transactions -> scheme_plans -> schemes to get the scheme.
+      SUM(CASE WHEN txn_type IN ('Purchase', 'SIP', 'Switch In') THEN amount
+               WHEN txn_type IN ('Redemption', 'Switch Out') THEN -amount
+               ELSE 0 END)
+      over transactions WHERE txn_status = 'Completed'
+      AND txn_type IN ('Purchase', 'SIP', 'Switch In', 'Redemption', 'Switch Out').
+      Money in = Purchase, SIP, Switch In. Money out = Redemption, Switch Out. Any other
+      txn_type is neither and must not be counted. Use this CASE exactly; never use
+      ELSE amount. Join transactions -> scheme_plans -> schemes to get the scheme.
     tables: [transactions, scheme_plans, schemes]
 
   # Redemptions = investors taking money out.

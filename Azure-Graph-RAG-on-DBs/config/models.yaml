@@ -63,7 +63,10 @@ chat:
 
 # ── EMBEDDING MODEL ──────────────────────────────────────────────────────────
 
-embedding: text-embedding-3-small
+embedding: text-embedding-3-large
+embedding_dimensions: 1536
+# Must match vector(1536) in metadata/store.py. text-embedding-3-large returns
+# 3,072 numbers by default; this asks it for 1,536 instead.
 # Turns a piece of text into a list of 1,536 numbers. Text with a similar
 # meaning gets similar numbers, which is what makes searching by meaning work.
 #
